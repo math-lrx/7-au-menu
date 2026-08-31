@@ -205,6 +205,24 @@
   .confirm-box .confirm-actions button{flex:1;padding:11px;border-radius:var(--radius);border:none;font-family:inherit;font-weight:700;font-size:14px;cursor:pointer;}
   .confirm-box .confirm-cancel{background:transparent;border:1.5px solid rgba(26,39,43,.28) !important;color:var(--ardoise);}
   .confirm-box .confirm-ok{background:var(--grad-marque);color:var(--ardoise);}
+  .changelog-box{max-width:420px;max-height:80vh;display:flex;flex-direction:column;}
+  .changelog-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:12px;font-size:15px;color:var(--ardoise);}
+  .changelog-head span{font-size:12px;color:#8a8172;font-weight:400;}
+  .changelog-list{overflow-y:auto;margin-bottom:14px;padding-right:4px;}
+  .changelog-entry{padding:10px 0;border-top:1px dashed #ddd2b8;}
+  .changelog-entry:first-child{border-top:none;padding-top:0;}
+  .changelog-entry-head{font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;font-size:12px;font-weight:700;color:var(--ardoise);margin-bottom:4px;}
+  .changelog-entry-head span{font-weight:400;color:#8a8172;margin-left:6px;}
+  .changelog-entry ul{margin:0;padding-left:18px;font-size:13px;line-height:1.5;color:var(--encre);}
+  .changelog-entry li{margin-bottom:4px;}
+  header.top .version-btn{background:none;border:none;color:#8a8172;font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;font-size:11px;padding:0;margin-top:10px;cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
+  header.top .version-btn:hover{color:var(--ardoise);}
+  .banniere-historique{background:#FBF0DD;border:1px solid #E8CE94;border-radius:var(--radius);padding:12px 16px;margin:0 20px 16px;font-size:13.5px;color:var(--encre);}
+  .historique-item{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#5b544a;padding:10px 0;border-top:1px dashed #ddd2b8;}
+  .historique-item .historique-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+  .historique-item .historique-actions button{font-family:system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:11px;font-weight:700;padding:5px 10px;border-radius:12px;border:1.5px solid rgba(26,39,43,.28);background:#fff;color:var(--ardoise);cursor:pointer;}
+  .historique-item .historique-actions button:hover{border-color:var(--moutarde);background:rgba(253,164,1,.1);}
+  .historique-item .historique-actions button:disabled{opacity:.4;cursor:not-allowed;}
   @media print{
     *{box-shadow:none !important; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
     body{background:#fff;}
@@ -246,6 +264,53 @@ function alerterAction(message){
   overlay.innerHTML = `<div class="confirm-box"><p>${message}</p><div class="confirm-actions">
     <button class="confirm-ok" type="button" style="flex:1;">Compris</button>
   </div></div>`;
+  document.body.appendChild(overlay);
+  const fermer = () => { overlay.remove(); };
+  overlay.addEventListener('click', (e)=>{ if(e.target === overlay) fermer(); });
+  overlay.querySelector('.confirm-ok').addEventListener('click', fermer);
+}
+const VERSION_INFO = {
+  version: '1.5',
+  date: '31 août 2026',
+  changelog: [
+    { version: '1.5', date: '31 août 2026', notes: [
+      "Nouveaux rayons de liste de courses, calqués sur un vrai parcours de supermarché (fruits & légumes, boucherie/poissonnerie, crèmerie, féculents & épicerie, boulangerie, surgelés, boissons).",
+      "Les différentes appellations d'un même ingrédient (ex. « bœuf haché » et « viande de bœuf hachée ») sont désormais regroupées côte à côte dans la liste.",
+      "Historique cliquable : les semaines précédentes peuvent être rouvertes pour consulter à nouveau leur liste de courses et leur carnet de recettes.",
+      "Ajout de ce bouton « Version » pour suivre les nouveautés de l'outil.",
+    ]},
+    { version: '1.4', date: 'précédemment', notes: [
+      "Thème graphique éclairci pour se rapprocher du logo, bandeau et fond repensés.",
+      "Nom « 7 au Menu ! » affiché en toutes lettres à côté du logo, avec ses couleurs.",
+      "Correction d'un bug qui empêchait l'impression / la génération de PDF sur certains écrans.",
+    ]},
+    { version: '1.3', date: 'précédemment', notes: [
+      "Nouvel habillage graphique complet à partir du logo (couleurs, dégradés, pastilles).",
+      "Calculateur anti-répétition plus fin pour les grandes préparations reconsommées plusieurs fois dans la semaine.",
+      "Correction du bouton d'accueil.",
+    ]},
+    { version: '1.2', date: 'précédemment', notes: [
+      "Semaine entièrement sur-mesure (convives et disponibilité repas par repas), avec profil-type à enregistrer.",
+      "Gestion du corpus : retirer une recette, visualiser les recettes par type de préparation.",
+    ]},
+    { version: '1.0', date: 'précédemment', notes: [
+      "Première version grand public : sélection des recettes (manuelle ou automatique), liste de courses, carnet de recettes.",
+    ]},
+  ],
+};
+function afficherChangelog(){
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = `<div class="confirm-box changelog-box">
+    <div class="changelog-head"><strong>7 au Menu ! — version ${VERSION_INFO.version}</strong><span>${VERSION_INFO.date}</span></div>
+    <div class="changelog-list">
+      ${VERSION_INFO.changelog.map(entry=>`<div class="changelog-entry">
+        <div class="changelog-entry-head">Version ${entry.version} <span>${entry.date}</span></div>
+        <ul>${entry.notes.map(n=>`<li>${n}</li>`).join('')}</ul>
+      </div>`).join('')}
+    </div>
+    <div class="confirm-actions"><button class="confirm-ok" type="button" style="flex:1;">Fermer</button></div>
+  </div>`;
   document.body.appendChild(overlay);
   const fermer = () => { overlay.remove(); };
   overlay.addEventListener('click', (e)=>{ if(e.target === overlay) fermer(); });
@@ -377,9 +442,33 @@ function idsChoisisActuels(){
 function enregistrerSemaineActuelle(){
   const aujourdhui = new Date().toISOString().slice(0,10);
   historique = historique.filter(e => e.sessionId !== state.sessionId);
-  historique.push({ date: aujourdhui, sessionId: state.sessionId, preparations: preparationsChoisiesActuelles() });
+  historique.push({
+    date: aujourdhui,
+    sessionId: state.sessionId,
+    preparations: preparationsChoisiesActuelles(),
+    instantane: {
+      custom: state.custom,
+      dispo: state.dispo,
+      rapideReconso: state.rapideReconso,
+      choixLots: state.choixLots,
+    },
+  });
   historique = historique.slice(-20);
   ecrireStockage('historique_semaines', historique);
+}
+function voirSemaineHistorique(sessionId, cible){
+  const entree = historique.find(e=>e.sessionId===sessionId);
+  if(!entree || !entree.instantane) return false;
+  state.custom = JSON.parse(JSON.stringify(entree.instantane.custom));
+  state.dispo = JSON.parse(JSON.stringify(entree.instantane.dispo));
+  state.rapideReconso = JSON.parse(JSON.stringify(entree.instantane.rapideReconso));
+  state.choixLots = JSON.parse(JSON.stringify(entree.instantane.choixLots));
+  state.modeHistorique = { date: entree.date };
+  state.step = cible === 'courses' ? 6 : 5;
+  state.vue = 'planificateur';
+  render();
+  window.scrollTo(0,0);
+  return true;
 }
 /* Historique pondéré : plus une recette a servi de gros lot reconsommé plusieurs fois récemment,
    plus son "poids" est élevé — afin de décourager plus fortement sa réutilisation pour un nouveau
@@ -476,6 +565,7 @@ let state = {
   vue: 'planificateur',
   profilChargeAuDepart: false,
   profilVientDetreEnregistre: false,
+  modeHistorique: null,
   consultation: { etape:'portions', portions:4, recetteId:null, filtres:{ vegetarien:null, viandes:[], saisons:[], rythme:null } },
 };
 function initCustomIfNeeded(){
@@ -654,17 +744,28 @@ function fmtTemps(min){
   if(min>=60){ const h=Math.floor(min/60), m=min%60; return m ? `${h} h ${m} min` : `${h} h`; }
   return `${min} min`;
 }
+function sansAccents(s){ return s.normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function motDansTexte(mot, texte){
+  const echappe = mot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`(?<![\\p{L}])${echappe}s?(?![\\p{L}])`, 'iu');
+  return re.test(texte);
+}
 const RAYON_MOTS = [
-  ['Frais & protéines', ['poulet','bœuf','boeuf','porc','viande','jambon','œuf','oeuf','thon','lard','volaille']],
-  ['Fromage & matières grasses', ['fromage','cheddar','comté','parmesan','feta','emmental','brillat-savarin','burrata','ricotta','mozzarella','beurre','crème','huile']],
-  ['Féculents & légumineuses', ['riz','pâtes','tagliatelle','penne','nouille','épeautre','quinoa','lentille','haricot rouge','haricot blanc','haricot vert','pain','pita','chapelure','farine','vermicelle','conchiglione','pois chiche','pois cassé','fève','coquillette']],
-  ['Fruits & légumes', ['tomate','concombre','poivron','carotte','oignon','échalote','ail','céleri','champignon','avocat','citron','salade','épinard','courgette','brocoli','poireau','figue','persil','coriandre','menthe','aneth','origan','basilic','thym','ciboulette','roquette','pomme verte','aubergine','pomme de terre']],
-  ['Épicerie', ['sauce','vinaigre','épice','cumin','paprika','curcuma','harissa','moutarde','sirop','cassonade','sucre','bouillon','vin ','bière','concentré','maïs','lait','yaourt','curry','tahini','pignon','guacamole','crème de basilic']],
+  ['Surgelés', ['surgelé','surgelés','surgelée','surgelées']],
+  ['Boulangerie', ['pain','pita','naan','tortilla','brioche','baguette']],
+  ['Boissons & alcools de cuisine', ['vin rouge','vin blanc','vin jaune','vin','bière','cidre']],
+  ['Boucherie, volaille & poissonnerie', ['poulet','volaille','bœuf','boeuf','porc','viande','jambon','lard','lardon','chorizo','saucisse','chipolata','merguez','pancetta','bacon','canard','poularde','thon','saumon','poisson','crevette','morue','cabillaud']],
+  ['Crèmerie & œufs', ['lait','yaourt','yogourt','skyr','œuf','oeuf','fromage','crème','creme','beurre','burrata','ricotta','mozzarella','feta','comté','comte','cheddar','parmesan','emmental','brillat-savarin','reblochon','pecorino']],
+  ['Féculents, légumineuses & épicerie salée', ['riz','pâtes','pates','tagliatelle','penne','nouille','macaroni','linguine','rigatoni','spaghetti','lasagne','tortellini','fusilli','farfalle','vermicelle','épeautre','epeautre','quinoa','boulgour','couscous','lentille','haricot rouge','haricots rouges','haricot blanc','haricots blancs','pois chiche','pois cassé','pois casse','fève','feve','conchiglione','coquillette','orzo','gnocchi','chapelure','farine','sauce','vinaigre','huile','épice','epice','cumin','paprika','curcuma','harissa','moutarde','sirop','cassonade','sucre','miel','bouillon','concentré','concentre','concassée','concassees','concassées','coulis','chair de tomate','maïs','mais','curry','tahini','pignon de pin','pignons de pin','guacamole']],
+  ['Fruits & légumes frais', ['tomate','concombre','poivron','carotte','oignon','échalote','echalote','ail','céleri','celeri','champignon','portobello','avocat','citron','salade','laitue','mesclun','mâche','mache','radis','épinard','epinard','courgette','brocoli','poireau','poireaux','figue','persil','coriandre','menthe','aneth','origan frais','basilic','thym frais','romarin','ciboulette','roquette','sauge','cerfeuil','estragon','cébette','cebette','pomme verte','aubergine','pomme de terre','pommes de terre','pomme grenaille','petit pois','petits pois','haricot vert','haricots verts','gingembre','citronnelle','piment jalapeño','piment rouge','piment vert','piment oiseau','pastèque','pasteque','chou','choux','ananas','navet','potimarron','raisin noir']],
 ];
 function classifierRayon(nom){
-  const n = nom.toLowerCase();
-  for(const [rayon, mots] of RAYON_MOTS){ if(mots.some(m=>n.includes(m))) return rayon; }
-  return 'Épicerie';
+  const n = nom.toLowerCase().replace(/\([^)]*\)/g, ' ');
+  for(const [rayon, mots] of RAYON_MOTS){
+    const trouve = mots.find(m=>motDansTexte(m, n));
+    if(trouve) return { rayon, motCle: sansAccents(trouve) };
+  }
+  return { rayon:'Épicerie', motCle: sansAccents(n) };
 }
 const VIANDE_MOTS = [
   ['Bœuf', ['bœuf','boeuf']],
@@ -732,7 +833,11 @@ function genererListe(){
       if(ing.qte==null){ sansQuantite.add(ing.nom); return; }
       const u = baseUnit(ing.unite);
       const key = ing.nom + '|' + u;
-      if(!totaux[key]) { totaux[key] = { nom:ing.nom, unite:u, qte:0, rayon: ing.base ? 'Condiments & basiques' : classifierRayon(ing.nom) }; provenance[key] = new Set(); }
+      if(!totaux[key]) {
+        const classement = ing.base ? { rayon:'Condiments & basiques', motCle: sansAccents(ing.nom.toLowerCase().replace(/\([^)]*\)/g, ' ').trim()) } : classifierRayon(ing.nom);
+        totaux[key] = { nom:ing.nom, unite:u, qte:0, rayon: classement.rayon, motCle: classement.motCle };
+        provenance[key] = new Set();
+      }
       totaux[key].qte += ing.qte * sel.portions;
       provenance[key].add(`${sel.label} · ${recette.nom}`);
     });
@@ -744,6 +849,9 @@ function genererListe(){
     item.provenance = Array.from(provenance[key]);
     if(!parRayon[item.rayon]) parRayon[item.rayon] = [];
     parRayon[item.rayon].push(item);
+  });
+  Object.values(parRayon).forEach(items=>{
+    items.sort((a,b)=> a.motCle.localeCompare(b.motCle) || a.nom.localeCompare(b.nom));
   });
   return { parRayon, sansQuantite: Array.from(sansQuantite).sort() };
 }
@@ -763,6 +871,7 @@ function render(){
   let html = `<header class="top">
     <h1 class="brand-row"><img src="${LOGO_7_AU_MENU}" alt=""><span class="brand-word"><span class="accent">7</span> au Menu <span class="accent">!</span></span></h1>
     <p class="brand-subtitle">Décrivez votre semaine, laissez l'outil proposer vos recettes, puis récupérez votre liste de courses et votre carnet de recettes prêt à cuisiner.</p>
+    <button class="version-btn no-print" id="ouvrirChangelog" type="button">ℹ️ Version ${VERSION_INFO.version} — voir les nouveautés</button>
   </header>
   <div class="stepper">${[1,2,3,4,5].map(n=>`<div class="dot ${state.step===n?'active':state.step>n?'done':''}" data-step-n="${n}"></div>`).join('')}</div>`;
   if(state.step===1) html += renderStep1();
@@ -1085,8 +1194,16 @@ function renderHistoriqueRecap(){
     ${tri.map(e=>{
       const preps = e.preparations || (e.recettesChoisies||[]).map(id=>({id, nbSlots:1}));
       const noms = preps.map(p=>{ const r = CORPUS.find(x=>x.id===p.id); return r?r.nom:p.id; }).join(' · ');
-      return `<div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#5b544a;padding:8px 0;border-top:1px dashed #ddd2b8;">
-        <div style="flex:1;"><strong style="color:var(--ardoise);font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;">${e.date}</strong><br>${noms}</div>
+      const dispo = !!e.instantane;
+      const titreIndispo = 'Semaine enregistrée avant l ajout de cette fonctionnalite : non consultable.';
+      return `<div class="historique-item">
+        <div style="flex:1;">
+          <strong style="color:var(--ardoise);font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;">${e.date}</strong><br>${noms}
+          <div class="historique-actions">
+            <button data-voir-historique="${e.sessionId}" data-cible="carnet" ${dispo?'':'disabled'} title="${dispo?'Voir le carnet de recettes de cette semaine':titreIndispo}">📖 Carnet</button>
+            <button data-voir-historique="${e.sessionId}" data-cible="courses" ${dispo?'':'disabled'} title="${dispo?'Voir la liste de courses de cette semaine':titreIndispo}">🛒 Courses</button>
+          </div>
+        </div>
         <button class="retire-btn" data-effacer-semaine="${e.sessionId}" title="Supprimer cette semaine de l'historique">✕</button>
       </div>`;
     }).join('')}
@@ -1181,15 +1298,15 @@ function renderStep3(){
 
 function renderStep4(){
   const { parRayon, sansQuantite } = genererListe();
-  const ordreRayons = ['Fruits & légumes','Féculents & légumineuses','Frais & protéines','Fromage & matières grasses','Épicerie','Condiments & basiques'];
+  const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents, légumineuses & épicerie salée','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
   let html = `<div class="ticket-wrap"><section style="padding-top:8px;"><h2>4. Ticket de courses</h2>
-  <p class="sub">Coche au fur et à mesure. Un ingrédient sous deux formes différentes reste séparé.</p></section>
+  <p class="sub">Coche au fur et à mesure. Les variantes d'un même ingrédient (ex. « bœuf haché » et « viande de bœuf hachée ») sont regroupées côte à côte pour faciliter le repérage, mais restent des lignes séparées.</p></section>
   <div class="ticket"><h3>Courses — semaine prochaine</h3><div class="meta">Semaine sur-mesure</div>`;
   ordreRayons.forEach(rayon=>{
     const items = parRayon[rayon];
     if(!items || !items.length) return;
     html += `<div class="rayon"><div class="rayon-title">${rayon}</div>`;
-    items.sort((a,b)=>a.nom.localeCompare(b.nom)).forEach(item=>{
+    items.forEach(item=>{
       const itemKey = item.nom+'|'+item.unite;
       const checked = state.cochees.has(itemKey);
       html += `<label class="item-row ${checked?'checked':''}">
@@ -1261,9 +1378,16 @@ function renderFicheRecette(recette, p){
   </div>`;
 }
 
+function renderBanniereHistorique(){
+  if(!state.modeHistorique) return '';
+  return `<div class="no-print banniere-historique">📅 Vous consultez la semaine archivée du <strong>${state.modeHistorique.date}</strong>.
+    <button class="cta secondary" id="quitterHistorique" style="margin:8px 0 0;width:auto;padding:8px 14px;">← Revenir à la planification actuelle</button>
+  </div>`;
+}
 function renderStep5(){
   const selections = selectionsActuelles().filter(s=>s.recipeId);
   let html = `<div class="carnet-wrap">
+    ${renderBanniereHistorique()}
     <div class="no-print carnet-topbar">
       <button class="cta" id="backTo4">← Retour à la liste de courses</button>
       <button class="cta secondary" id="imprimerCarnet">🖨️ PDF</button>
@@ -1283,14 +1407,14 @@ function renderStep5(){
 
 function renderStep6(){
   const { parRayon, sansQuantite } = genererListe();
-  const ordreRayons = ['Fruits & légumes','Féculents & légumineuses','Frais & protéines','Fromage & matières grasses','Épicerie','Condiments & basiques'];
+  const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents, légumineuses & épicerie salée','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
   let html = `<div class="carnet-wrap">
+    ${renderBanniereHistorique()}
     <div class="no-print carnet-topbar">
       <button class="cta" id="backTo4depuis6">← Retour à la liste de courses</button>
       <button class="cta secondary" id="imprimerCourses">🖨️ PDF</button>
     </div>
-    <div class="carnet-cover" style="margin-top:20px;">
-      <img class="carnet-logo" src="${LOGO_7_AU_MENU}" alt="7 au Menu !">
+    <div class="carnet-cover" style="margin-top:20px;">      <img class="carnet-logo" src="${LOGO_7_AU_MENU}" alt="7 au Menu !">
       <div class="carnet-cover-text"><div class="eyebrow">Carnet de la semaine</div><h2>Liste de courses</h2>
       <p>Semaine sur-mesure</p></div>
     </div>
@@ -1300,7 +1424,7 @@ function renderStep6(){
     const items = parRayon[rayon];
     if(!items || !items.length) return;
     html += `<div class="carnet-section-title" style="margin-top:20px;">${rayon}</div>`;
-    items.sort((a,b)=>a.nom.localeCompare(b.nom)).forEach(item=>{
+    items.forEach(item=>{
       html += `<div class="carnet-ing-row"><span>☐ ${item.nom}<span style="display:block;font-size:10px;color:#9a9284;">${item.provenance.join(' + ')}</span></span><span class="q">${fmtQte(item.qte, item.unite)}</span></div>`;
     });
   });
@@ -1393,7 +1517,7 @@ function reinitialiserPourNouvelleSemaine(){
   state.step = 1; state.mode = 'custom'; state.selectionMode = null;
   state.choixLots = {}; state.custom = {}; state.dispo = {}; state.rapideReconso = {};
   state.cochees = new Set(); state.sessionId = nouvelIdSemaine();
-  state.profilChargeAuDepart = false; state.profilVientDetreEnregistre = false;
+  state.profilChargeAuDepart = false; state.profilVientDetreEnregistre = false; state.modeHistorique = null;
   state.consultation.etape = 'portions'; state.consultation.recetteId = null;
 }
 
@@ -1469,6 +1593,21 @@ function attachEvents(){
       render();
     });
   });
+  document.querySelectorAll('[data-voir-historique]').forEach(btn=>{
+    if(btn.disabled) return;
+    btn.addEventListener('click', ()=>{
+      confirmerAction("Consulter cette semaine archivée ? La semaine en cours de préparation sera remplacée à l'écran (elle reste dans l'historique si déjà enregistrée).", ()=>{
+        voirSemaineHistorique(btn.dataset.voirHistorique, btn.dataset.cible);
+      });
+    });
+  });
+  const quitterHistorique = document.getElementById('quitterHistorique');
+  if(quitterHistorique) quitterHistorique.addEventListener('click', ()=>{
+    reinitialiserPourNouvelleSemaine();
+    render();
+  });
+  const ouvrirChangelog = document.getElementById('ouvrirChangelog');
+  if(ouvrirChangelog) ouvrirChangelog.addEventListener('click', afficherChangelog);
 
   const ouvrirGuideCorpus = document.getElementById('ouvrirGuideCorpus');
   if(ouvrirGuideCorpus) ouvrirGuideCorpus.addEventListener('click', ()=>{ state.vue = 'guide'; render(); });
@@ -1608,7 +1747,7 @@ function attachEvents(){
   const toStep4 = document.getElementById('toStep4');
   if(toStep4) toStep4.addEventListener('click', ()=>{ state.step=4; render(); });
   const toStep5 = document.getElementById('toStep5');
-  if(toStep5) toStep5.addEventListener('click', ()=>{ enregistrerSemaineActuelle(); state.step=5; render(); });
+  if(toStep5) toStep5.addEventListener('click', ()=>{ if(!state.modeHistorique) enregistrerSemaineActuelle(); state.step=5; render(); });
   const toStep6 = document.getElementById('toStep6');
   if(toStep6) toStep6.addEventListener('click', ()=>{ state.step=6; render(); });
   const backTo1 = document.getElementById('backTo1');
