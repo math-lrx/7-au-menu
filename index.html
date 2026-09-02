@@ -89,6 +89,12 @@
   .profil-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
   .profil-note{font-size:12.5px;color:#5b544a;background:var(--papier);border-radius:var(--radius);padding:8px 12px;margin:10px 0;}
   .dispo-reconso-toggle{display:flex;align-items:center;gap:5px;font-size:11px;color:#5b544a;margin-top:4px;}
+  .multiprep-row{width:100%;margin-top:8px;padding-top:8px;border-top:1px dashed #ddd2b8;}
+  .multiprep-row label{display:block;font-size:11.5px;color:#5b544a;margin-bottom:5px;}
+  .multiprep-choix{display:flex;gap:6px;}
+  .multiprep-btn{font-family:system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:13px;font-weight:700;width:34px;height:34px;border-radius:50%;border:1.5px solid #d8cfb8;background:#fff;color:var(--ardoise);cursor:pointer;}
+  .multiprep-btn.active{background:var(--ardoise);border-color:var(--ardoise);color:#fff;}
+  .multiprep-aide{font-size:11px;color:#8a8172;margin:6px 0 0;font-style:italic;}
   .criteria-card{background:var(--papier);border:1px solid #E7E1D2;border-radius:var(--radius);padding:16px;margin-top:16px;box-shadow:0 1px 3px rgba(43,38,32,.05);}
   .criteria-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px dashed #ddd2b8;}
   .criteria-row:first-of-type{border-top:none;}
@@ -271,10 +277,18 @@ function alerterAction(message){
   overlay.querySelector('.confirm-ok').addEventListener('click', fermer);
 }
 const VERSION_INFO = {
-  version: '1.7',
-  date: '31 août 2026',
+  version: '1.9',
+  date: '1 septembre 2026',
   changelog: [
-    { version: '1.7', date: '31 août 2026', notes: [
+    { version: '1.9', date: '1 septembre 2026', notes: [
+      "Nouveau : sur un repas « Confortable », possibilité de préparer plusieurs plats différents (jusqu'à 3) en une seule session de cuisine. L'outil répartit ensuite automatiquement les repas suivants entre ces plats pour varier les menus, au lieu de manger le même plat plusieurs fois d'affilée.",
+      "Le générateur automatique choisit des plats volontairement différents les uns des autres pour une même session multi-plats.",
+    ]},
+    { version: '1.8', date: 'précédemment', notes: [
+      "La liste de courses n'affiche plus la précision d'usage entre parenthèses (ex. « Ail (sauce tomate) » devient « Ail ») : la provenance déjà indiquée sous chaque ligne suffit à savoir à quoi ça sert.",
+      "Les occurrences d'un même ingrédient, dans la même unité, sont désormais additionnées en une seule ligne plutôt que dispersées.",
+    ]},
+    { version: '1.7', date: 'précédemment', notes: [
       "Nouvelle rubrique « Conserves, sauces & condiments », séparée des féculents & légumineuses : les tomates en conserve, sauces, huiles, épices et légumes préservés en bocal (confits, grillés, déshydratés, pelés...) ne sont plus mélangés avec les pâtes/riz/légumineuses, et ne sont plus classés par erreur avec les légumes frais.",
       "Le classement des ingrédients est désormais insensible à l'orthographe des accents et des lettres composées (bœuf/boeuf, épice/épice), pour plus de robustesse.",
     ]},
@@ -460,6 +474,7 @@ function enregistrerSemaineActuelle(){
       custom: state.custom,
       dispo: state.dispo,
       rapideReconso: state.rapideReconso,
+      multiPrep: state.multiPrep,
       choixLots: state.choixLots,
     },
   });
@@ -472,6 +487,7 @@ function voirSemaineHistorique(sessionId, cible){
   state.custom = JSON.parse(JSON.stringify(entree.instantane.custom));
   state.dispo = JSON.parse(JSON.stringify(entree.instantane.dispo));
   state.rapideReconso = JSON.parse(JSON.stringify(entree.instantane.rapideReconso));
+  state.multiPrep = entree.instantane.multiPrep ? JSON.parse(JSON.stringify(entree.instantane.multiPrep)) : {};
   state.choixLots = JSON.parse(JSON.stringify(entree.instantane.choixLots));
   state.modeHistorique = { date: entree.date };
   state.step = cible === 'courses' ? 6 : 5;
@@ -531,7 +547,7 @@ const DISPO_DEFAUT_GENERIQUE = 'rapide';
 /* Profil-type : la description de la semaine que l'utilisateur peut enregistrer pour la retrouver la fois suivante */
 function chargerProfilType(){ return lireStockage('profil_type_repas'); }
 function sauvegarderProfilType(){
-  ecrireStockage('profil_type_repas', { custom: state.custom, dispo: state.dispo, rapideReconso: state.rapideReconso });
+  ecrireStockage('profil_type_repas', { custom: state.custom, dispo: state.dispo, rapideReconso: state.rapideReconso, multiPrep: state.multiPrep });
   state.profilVientDetreEnregistre = true;
 }
 function appliquerProfilType(){
@@ -541,6 +557,7 @@ function appliquerProfilType(){
     state.custom[s.id] = p.custom && p.custom[s.id] ? { ...p.custom[s.id] } : defautAttendance();
     state.dispo[s.id] = (p.dispo && p.dispo[s.id]) || DISPO_DEFAUT_GENERIQUE;
     state.rapideReconso[s.id] = !!(p.rapideReconso && p.rapideReconso[s.id]);
+    state.multiPrep[s.id] = (p.multiPrep && p.multiPrep[s.id]) || 1;
   });
   return true;
 }
@@ -554,6 +571,7 @@ function copierJourVersSuivant(jourIndex){
     state.custom[idDst] = { ...state.custom[idSrc] };
     state.dispo[idDst] = state.dispo[idSrc];
     state.rapideReconso[idDst] = state.rapideReconso[idSrc];
+    state.multiPrep[idDst] = state.multiPrep[idSrc];
   });
 }
 
@@ -564,6 +582,7 @@ let state = {
   custom: {},
   dispo: {},
   rapideReconso: {},
+  multiPrep: {},
   choixLots: {},
   selectionMode: null,
   filtreThermomix: null,
@@ -587,6 +606,7 @@ function initCustomIfNeeded(){
     state.custom[s.id] = defautAttendance();
     state.dispo[s.id] = DISPO_DEFAUT_GENERIQUE;
     state.rapideReconso[s.id] = false;
+    state.multiPrep[s.id] = 1;
   });
 }
 function attendanceFor(slotId){
@@ -600,30 +620,63 @@ function slotConsumption(slotId){
 /* Construction des lots (mode sur-mesure) */
 function construirePlanSurMesure(){
   initCustomIfNeeded();
-  const lots = [];
-  let lotActif = null;
+  /* Passe 1 : on regroupe les repas en "chaînes", exactement comme avant — une chaîne démarre à
+     un repas confortable ou rapide, et absorbe tous les repas de reconsommation qui suivent
+     jusqu'à la prochaine préparation. */
+  const chaines = [];
+  let chaineActive = null;
   SLOTS.forEach(s=>{
     const portionsRepas = portionsSlot(state.custom[s.id]);
     if(portionsRepas === 0) return;
     const dispo = state.dispo[s.id];
     if(dispo === 'confortable'){
-      lotActif = { id:'lot'+(lots.length+1), slots:[{...s, portionsRepas, role:'prep'}] };
-      lots.push(lotActif);
+      const nbRecettes = Math.max(1, Math.min(3, state.multiPrep[s.id] || 1));
+      chaineActive = { premier:{...s, portionsRepas, role:'prep'}, suite:[], nbRecettes };
+      chaines.push(chaineActive);
     } else if(dispo === 'rapide'){
       const reconso = state.rapideReconso[s.id];
-      if(reconso && lotActif){
-        lotActif.slots.push({...s, portionsRepas, role:'rapide_reconso'});
+      if(reconso && chaineActive){
+        chaineActive.suite.push({...s, portionsRepas, role:'rapide_reconso'});
       } else {
-        lotActif = { id:'lot'+(lots.length+1), slots:[{...s, portionsRepas, role:'prep_rapide'}] };
-        lots.push(lotActif);
+        chaineActive = { premier:{...s, portionsRepas, role:'prep_rapide'}, suite:[], nbRecettes:1 };
+        chaines.push(chaineActive);
       }
     } else {
-      if(lotActif){
-        lotActif.slots.push({...s, portionsRepas, role:'reconso'});
+      if(chaineActive){
+        chaineActive.suite.push({...s, portionsRepas, role:'reconso'});
       } else {
-        lots.push({ id:'orph'+s.id, slots:[{...s, portionsRepas, role:'orpheline'}], orpheline:true });
+        chaines.push({ orpheline:true, slot:{...s, portionsRepas, role:'orpheline'} });
       }
     }
+  });
+  /* Passe 2 : une chaîne "confortable" avec plusieurs plats demandés est éclatée en autant de
+     lots frères. Le premier récupère le repas du soir même (celui qu'on mange en sortant de
+     cuisine) ; les suivants démarrent à vide. Les repas de reconsommation qui suivent sont
+     ensuite répartis en tournante entre tous les lots frères — décalée d'un cran pour que le
+     repas juste après la cuisine soit déjà un plat différent de celui du soir même, plutôt
+     qu'une redite immédiate. Un lot frère qui ne récupère finalement aucun repas de reconsommation
+     (pas assez de repas suivants pour tous les alimenter) est simplement écarté. */
+  const lots = [];
+  chaines.forEach((chaine, idx)=>{
+    if(chaine.orpheline){
+      lots.push({ id:'orph'+chaine.slot.id, slots:[chaine.slot], orpheline:true });
+      return;
+    }
+    const n = chaine.nbRecettes || 1;
+    if(n <= 1){
+      lots.push({ id:'lot'+(idx+1), slots:[chaine.premier, ...chaine.suite] });
+      return;
+    }
+    const sousLots = [];
+    for(let i=0;i<n;i++){
+      sousLots.push({
+        id: `lot${idx+1}${String.fromCharCode(97+i)}`,
+        slots: i===0 ? [chaine.premier] : [{...chaine.premier, portionsRepas:0, phantom:true}],
+        groupePrep: idx+1, indexDansGroupe: i, tailleGroupe: n,
+      });
+    }
+    chaine.suite.forEach((s, i)=>{ sousLots[(i+1) % n].slots.push(s); });
+    sousLots.forEach(sl=>{ if(portionsLot(sl) > 0) lots.push(sl); });
   });
   return lots;
 }
@@ -639,7 +692,11 @@ function candidatsPourLot(lot){
     return true;
   }));
 }
-function labelLot(lot){ const p = lot.slots[0]; return `${p.jour} ${p.moment.toLowerCase()}`; }
+function labelLot(lot){
+  const p = lot.slots[0];
+  const base = `${p.jour} ${p.moment.toLowerCase()}`;
+  return lot.tailleGroupe ? `${base} — plat ${lot.indexDansGroupe+1}/${lot.tailleGroupe}` : base;
+}
 
 function choisirParmiMeilleurs(opts, scoreFn){
   let meilleurScore = Infinity;
@@ -703,6 +760,7 @@ function genererPropositionAuto(criteres){
   const recettesChoisiesObjets = [];
   const choixLots = {};
   const joursUtilisation = {}; // recipeId -> [jourIndex, ...] déjà utilisés cette semaine
+  const choixParGroupe = {}; // groupePrep -> [recette, ...] déjà retenues pour cette session multi-plats
   const repetitionsForcees = []; // { lot, id } quand aucune recette fraîche n'était disponible
   lots.forEach(lot=>{
     const tailleLot = lot.slots.length;
@@ -711,6 +769,14 @@ function genererPropositionAuto(criteres){
     const sansDoublon = opts.filter(r=>!dejaChoisies.has(r.id));
     const repetitionForcee = sansDoublon.length === 0 && opts.length > 0;
     if(sansDoublon.length) opts = sansDoublon;
+    /* Les plats cuisinés lors de la même session (plusieurs recettes préparées au même moment
+       confortable) seront mangés à quelques jours d'écart seulement : on évite donc en priorité
+       de leur choisir des plats trop proches entre eux, plus encore qu'avec le reste de la semaine. */
+    if(lot.groupePrep && choixParGroupe[lot.groupePrep] && choixParGroupe[lot.groupePrep].length){
+      const soeurs = choixParGroupe[lot.groupePrep];
+      const sansSoeurSimilaire = opts.filter(o=>!soeurs.some(s=>similarite(o,s) > SEUIL_ALERTE_SIMILARITE));
+      if(sansSoeurSimilaire.length) opts = sansSoeurSimilaire;
+    }
     if(criteres.saisons && criteres.saisons.length){
       const f = opts.filter(o=>o.saisonnalite.includes('toute_saison') || o.saisonnalite.some(s=>criteres.saisons.includes(s)));
       if(f.length) opts = f;
@@ -745,6 +811,7 @@ function genererPropositionAuto(criteres){
     dejaChoisies.add(meilleur.id);
     recettesChoisiesObjets.push(meilleur);
     (joursUtilisation[meilleur.id] = joursUtilisation[meilleur.id] || []).push(jourLot);
+    if(lot.groupePrep) (choixParGroupe[lot.groupePrep] = choixParGroupe[lot.groupePrep] || []).push(meilleur);
     if(repetitionForcee) repetitionsForcees.push({ label: labelLot(lot), nom: meilleur.nom });
   });
   return { choixLots, repetitionsForcees };
@@ -875,19 +942,29 @@ function selectionsActuelles(){
 }
 
 /* Liste de courses */
+/* Nom "propre" pour l'affichage et le regroupement : on retire la précision d'usage entre
+   parenthèses (ex. "Ail (sauce tomate)" -> "Ail"), puisque la provenance déjà affichée sous
+   chaque ligne indique la recette concernée, et que chaque recette précise elle-même la bonne
+   quantité à utiliser au moment de la préparation. Le classement en rayon, lui, continue de
+   s'appuyer sur le nom complet (voir classifierRayon), pour ne pas perdre les indices utiles
+   qui ne figurent parfois que dans la parenthèse (ex. "(boîte)"). */
+function nomAffichage(nom){
+  return nom.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+}
 function genererListe(){
   const totaux = {}; const provenance = {}; const sansQuantite = new Set();
   selectionsActuelles().forEach(sel=>{
     if(!sel.recipeId) return;
     const recette = CORPUS.find(r=>r.id===sel.recipeId);
     recette.ingredients.forEach(ing=>{
-      const nom = ing.nom.normalize('NFC');
-      if(ing.qte==null){ sansQuantite.add(nom); return; }
+      const nomBrut = ing.nom.normalize('NFC');
+      const nomClair = nomAffichage(nomBrut);
+      if(ing.qte==null){ sansQuantite.add(nomClair); return; }
       const u = baseUnit(ing.unite);
-      const key = nom + '|' + u;
+      const key = nomClair.toLowerCase() + '|' + u;
       if(!totaux[key]) {
-        const classement = ing.base ? { rayon:'Condiments & basiques', motCle: sansAccents(nom.toLowerCase().replace(/\([^)]*\)/g, ' ').trim()) } : classifierRayon(nom);
-        totaux[key] = { nom, unite:u, qte:0, rayon: classement.rayon, motCle: classement.motCle };
+        const classement = ing.base ? { rayon:'Condiments & basiques', motCle: sansAccents(nomClair.toLowerCase()) } : classifierRayon(nomBrut);
+        totaux[key] = { nom: nomClair, unite:u, qte:0, rayon: classement.rayon, motCle: classement.motCle };
         provenance[key] = new Set();
       }
       totaux[key].qte += ing.qte * sel.portions;
@@ -991,7 +1068,7 @@ function renderRecapLots(){
     <p style="font-size:12.5px;color:#5b544a;margin:0 0 10px;">D'après vos convives et vos disponibilités : voici les préparations que l'outil propose de faire cette semaine. Ajustez la grille ci-dessus si quelque chose ne convient pas — cette proposition se recalcule aussitôt.</p>
     ${valides.map(lot=>`<div class="lot-recap-item">
       <strong>${labelLot(lot)}</strong> — préparer ${fmtPortions(portionsLot(lot))} portion${portionsLot(lot)>1?'s':''}
-      <div style="font-size:12px;color:#5b544a;">${lot.slots.map(s=>`${s.jour} ${s.moment.toLowerCase()} (${s.role==='prep'||s.role==='prep_rapide'?'préparation':(s.role==='rapide_reconso'?'reconsommé + complément rapide':'reconsommé')})`).join(' · ')}</div>
+      <div style="font-size:12px;color:#5b544a;">${lot.slots.filter(s=>!s.phantom).map(s=>`${s.jour} ${s.moment.toLowerCase()} (${s.role==='prep'||s.role==='prep_rapide'?'préparation':(s.role==='rapide_reconso'?'reconsommé + complément rapide':'reconsommé')})`).join(' · ')}</div>
     </div>`).join('')}
     ${orphelines.length ? `<div class="warn" style="margin-top:8px;">⚠ ${orphelines.length} repas marqué(s) « réchauffage / repas froid » sans aucune préparation avant eux cette semaine : ${orphelines.map(o=>`${o.slots[0].jour} ${o.slots[0].moment.toLowerCase()}`).join(', ')}. Ajustez leur disponibilité ci-dessus, ou prévoyez une préparation plus tôt dans la semaine.</div>` : ''}
   </div>`;
@@ -1278,6 +1355,11 @@ function renderGrilleCustom(){
         ${!att.retire ? `<div class="dispo-row">
           ${Object.entries(DISPO_LABELS).map(([key,d])=>`<button class="dispo-btn ${dispo===key?'active':''}" data-dispo-slot="${s.id}" data-dispo-val="${key}" title="${d.aide}">${d.court}<small>${d.duree}</small></button>`).join('')}
           ${dispo==='rapide' ? `<label class="dispo-reconso-toggle"><input type="checkbox" data-rapide-reconso="${s.id}" ${state.rapideReconso[s.id]?'checked':''}> Prolonger la préparation précédente (petit complément rapide) plutôt qu'une nouvelle recette</label>` : ''}
+          ${dispo==='confortable' ? `<div class="multiprep-row">
+            <label>Combien de plats différents veux-tu préparer à ce moment-là ?</label>
+            <div class="multiprep-choix">${[1,2,3].map(n=>`<button class="multiprep-btn ${(state.multiPrep[s.id]||1)===n?'active':''}" data-multiprep-slot="${s.id}" data-multiprep-val="${n}">${n}</button>`).join('')}</div>
+            ${(state.multiPrep[s.id]||1) > 1 ? `<p class="multiprep-aide">Ces plats seront répartis automatiquement sur les repas suivants pour varier les menus.</p>` : ''}
+          </div>` : ''}
         </div>` : ''}
       </div>`;
     });
@@ -1353,7 +1435,7 @@ function renderStep2(){
 }
 
 function renderCalendrierLot(lot){
-  const rows = lot.slots.map(s=>{
+  const rows = lot.slots.filter(s=>!s.phantom).map(s=>{
     let icone = '🍽', texte = 'consommées';
     if(s.role==='prep' || s.role==='prep_rapide'){ icone='🔪'; texte='préparées'; }
     if(s.role==='rapide_reconso'){ icone='🍽+'; texte='consommées avec complément rapide'; }
@@ -1441,8 +1523,8 @@ function renderEmploiDuTemps(){
   SLOTS.forEach(s=>{
     let grp = jours.find(j=>j.jour===s.jour);
     if(!grp){ grp = {jour:s.jour, midi:null, soir:null}; jours.push(grp); }
-    const lot = lots.find(l=>l.slots.some(x=>x.id===s.id));
-    grp[s.moment.toLowerCase()] = lot ? { lot, slotInfo: lot.slots.find(x=>x.id===s.id) } : null;
+    const lot = lots.find(l=>l.slots.some(x=>x.id===s.id && !x.phantom));
+    grp[s.moment.toLowerCase()] = lot ? { lot, slotInfo: lot.slots.find(x=>x.id===s.id && !x.phantom) } : null;
   });
   function cellule(entry){
     if(!entry) return `<span class="planning-empty">Repas retiré / —</span>`;
@@ -1688,7 +1770,7 @@ function importerDonnees(texteFichier){
 function reinitialiserPourNouvelleSemaine(){
   state.vue = 'planificateur';
   state.step = 1; state.mode = 'custom'; state.selectionMode = null;
-  state.choixLots = {}; state.custom = {}; state.dispo = {}; state.rapideReconso = {}; state.repetitionsForcees = [];
+  state.choixLots = {}; state.custom = {}; state.dispo = {}; state.rapideReconso = {}; state.multiPrep = {}; state.repetitionsForcees = [];
   state.cochees = new Set(); state.sessionId = nouvelIdSemaine();
   state.profilChargeAuDepart = false; state.profilVientDetreEnregistre = false; state.modeHistorique = null;
   state.consultation.etape = 'portions'; state.consultation.recetteId = null;
@@ -1894,10 +1976,17 @@ function attachEvents(){
     btn.addEventListener('click', ()=>{ const id = btn.dataset.retire; state.custom[id].retire = !state.custom[id].retire; state.profilVientDetreEnregistre = false; render(); });
   });
   document.querySelectorAll('[data-dispo-slot]').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ state.dispo[btn.dataset.dispoSlot] = btn.dataset.dispoVal; state.profilVientDetreEnregistre = false; render(); });
+    btn.addEventListener('click', ()=>{
+      state.dispo[btn.dataset.dispoSlot] = btn.dataset.dispoVal;
+      if(btn.dataset.dispoVal !== 'confortable') state.multiPrep[btn.dataset.dispoSlot] = 1;
+      state.profilVientDetreEnregistre = false; render();
+    });
   });
   document.querySelectorAll('[data-rapide-reconso]').forEach(cb=>{
     cb.addEventListener('change', ()=>{ state.rapideReconso[cb.dataset.rapideReconso] = cb.checked; state.profilVientDetreEnregistre = false; render(); });
+  });
+  document.querySelectorAll('[data-multiprep-slot]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{ state.multiPrep[btn.dataset.multiprepSlot] = parseInt(btn.dataset.multiprepVal,10); state.profilVientDetreEnregistre = false; render(); });
   });
 
   document.querySelectorAll('[data-selmode]').forEach(btn=>{
