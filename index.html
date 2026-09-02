@@ -87,6 +87,14 @@
   .lot-recap-item{padding:8px 0;border-top:1px dashed #ddd2b8;font-size:13px;}
   .lot-recap-item:first-of-type{border-top:none;}
   .profil-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
+  .periode-select{background:var(--papier);border:1px solid #E7E1D2;border-radius:var(--radius);padding:14px 16px;margin:14px 0;box-shadow:0 1px 3px rgba(43,38,32,.05);}
+  .periode-title{font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--sauge);margin-bottom:10px;}
+  .periode-champs{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;}
+  .periode-champ label{display:block;font-size:11px;color:#8a8172;margin-bottom:4px;}
+  .periode-inputs{display:flex;gap:6px;}
+  .periode-inputs select{font-family:inherit;font-size:13px;padding:7px 8px;border-radius:var(--radius);border:1.5px solid #d8cfb8;background:#fff;color:var(--encre);}
+  .periode-fleche{font-size:16px;color:#8a8172;padding-bottom:8px;}
+  .periode-note{font-size:12px;color:#5b544a;margin:10px 0 0;}
   .profil-note{font-size:12.5px;color:#5b544a;background:var(--papier);border-radius:var(--radius);padding:8px 12px;margin:10px 0;}
   .dispo-reconso-toggle{display:flex;align-items:center;gap:5px;font-size:11px;color:#5b544a;margin-top:4px;}
   .multiprep-row{width:100%;margin-top:8px;padding-top:8px;border-top:1px dashed #ddd2b8;}
@@ -277,10 +285,16 @@ function alerterAction(message){
   overlay.querySelector('.confirm-ok').addEventListener('click', fermer);
 }
 const VERSION_INFO = {
-  version: '1.9',
-  date: '1 septembre 2026',
+  version: '2.0',
+  date: '2 septembre 2026',
   changelog: [
-    { version: '1.9', date: '1 septembre 2026', notes: [
+    { version: '2.0', date: '2 septembre 2026', notes: [
+      "La semaine n'est plus obligatoirement lundi→dimanche : un sélecteur en haut de l'étape 1 permet de choisir le repas de début et de fin (ex. mercredi soir → mardi midi suivant). Retirer un repas précis reste toujours possible.",
+      "L'emploi du temps de la semaine s'affiche maintenant en haut de l'étape 3, et se met à jour en direct à chaque changement de recette.",
+      "Un repas de préparation qui est aussi consommé le jour même l'indique désormais clairement (🔪 🍽), au lieu de sembler n'être que de la préparation.",
+      "« Ticket de courses » renommé en « Liste de courses ».",
+    ]},
+    { version: '1.9', date: 'précédemment', notes: [
       "Nouveau : sur un repas « Confortable », possibilité de préparer plusieurs plats différents (jusqu'à 3) en une seule session de cuisine. L'outil répartit ensuite automatiquement les repas suivants entre ces plats pour varier les menus, au lieu de manger le même plat plusieurs fois d'affilée.",
       "Le générateur automatique choisit des plats volontairement différents les uns des autres pour une même session multi-plats.",
     ]},
@@ -471,6 +485,7 @@ function enregistrerSemaineActuelle(){
     sessionId: state.sessionId,
     preparations: preparationsChoisiesActuelles(),
     instantane: {
+      jourDebut: state.jourDebut, momentDebut: state.momentDebut, jourFin: state.jourFin, momentFin: state.momentFin,
       custom: state.custom,
       dispo: state.dispo,
       rapideReconso: state.rapideReconso,
@@ -484,6 +499,11 @@ function enregistrerSemaineActuelle(){
 function voirSemaineHistorique(sessionId, cible){
   const entree = historique.find(e=>e.sessionId===sessionId);
   if(!entree || !entree.instantane) return false;
+  if(entree.instantane.jourDebut){
+    state.jourDebut = entree.instantane.jourDebut; state.momentDebut = entree.instantane.momentDebut;
+    state.jourFin = entree.instantane.jourFin; state.momentFin = entree.instantane.momentFin;
+    regenererSlots();
+  }
   state.custom = JSON.parse(JSON.stringify(entree.instantane.custom));
   state.dispo = JSON.parse(JSON.stringify(entree.instantane.dispo));
   state.rapideReconso = JSON.parse(JSON.stringify(entree.instantane.rapideReconso));
@@ -530,12 +550,37 @@ const PROFILS = {
 /* Squelette générique des 14 repas de la semaine (tout utilisateur, quel que soit son foyer) */
 const JOURS_SEMAINE = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
 const MOMENTS_JOUR = ['Midi','Soir'];
-const SLOTS = [];
-JOURS_SEMAINE.forEach((jour, ij)=>{
-  MOMENTS_JOUR.forEach(moment=>{
-    SLOTS.push({ id: (jour+'_'+moment).toLowerCase(), jour, moment, jourIndex: ij });
-  });
-});
+const SEQUENCE_JOURS_MOMENTS = [];
+JOURS_SEMAINE.forEach(jour=>MOMENTS_JOUR.forEach(moment=>SEQUENCE_JOURS_MOMENTS.push({jour,moment})));
+let SLOTS = [];
+/* Reconstruit la liste des repas de la semaine à partir du point de départ et de fin choisis par
+   l'utilisateur (ex. "Mercredi soir" à "Mardi midi"). Gère le passage d'une semaine à l'autre :
+   si la fin précède le début dans l'ordre Lundi->Dimanche, on boucle jusqu'à la revenir. Si début
+   et fin sont identiques, on considère que l'utilisateur veut une semaine complète (14 repas). */
+function regenererSlots(){
+  const n = SEQUENCE_JOURS_MOMENTS.length;
+  const posDebut = SEQUENCE_JOURS_MOMENTS.findIndex(x=>x.jour===state.jourDebut && x.moment===state.momentDebut);
+  const posFin = SEQUENCE_JOURS_MOMENTS.findIndex(x=>x.jour===state.jourFin && x.moment===state.momentFin);
+  let longueur = posFin - posDebut + 1;
+  if(longueur <= 0) longueur += n;
+  if(posDebut === posFin) longueur = n;
+  const nouveaux = [];
+  let dernierJourVu = null, dayIdx = -1;
+  for(let k=0;k<longueur;k++){
+    const {jour, moment} = SEQUENCE_JOURS_MOMENTS[(posDebut+k) % n];
+    if(jour !== dernierJourVu){ dayIdx++; dernierJourVu = jour; }
+    nouveaux.push({ id: (jour+'_'+moment).toLowerCase(), jour, moment, jourIndex: dayIdx, position: k });
+  }
+  SLOTS = nouveaux;
+}
+/* Liste ordonnée des jours (sans doublon) effectivement couverts par la semaine choisie — utile
+   pour "copier sur le jour suivant" et pour savoir si on est sur le dernier jour, puisque l'ordre
+   n'est plus forcément Lundi->Dimanche. */
+function joursDeLaSemaineChoisie(){
+  const vus = [];
+  SLOTS.forEach(s=>{ if(!vus.includes(s.jour)) vus.push(s.jour); });
+  return vus;
+}
 const DEFAUT_CONVIVES = { adulte:2, grand:0, petit:0 };
 function defautAttendance(){ return { ...DEFAUT_CONVIVES, retire:false }; }
 function portionsSlot(att){
@@ -547,12 +592,20 @@ const DISPO_DEFAUT_GENERIQUE = 'rapide';
 /* Profil-type : la description de la semaine que l'utilisateur peut enregistrer pour la retrouver la fois suivante */
 function chargerProfilType(){ return lireStockage('profil_type_repas'); }
 function sauvegarderProfilType(){
-  ecrireStockage('profil_type_repas', { custom: state.custom, dispo: state.dispo, rapideReconso: state.rapideReconso, multiPrep: state.multiPrep });
+  ecrireStockage('profil_type_repas', {
+    jourDebut: state.jourDebut, momentDebut: state.momentDebut, jourFin: state.jourFin, momentFin: state.momentFin,
+    custom: state.custom, dispo: state.dispo, rapideReconso: state.rapideReconso, multiPrep: state.multiPrep,
+  });
   state.profilVientDetreEnregistre = true;
 }
 function appliquerProfilType(){
   const p = chargerProfilType();
   if(!p) return false;
+  if(p.jourDebut){
+    state.jourDebut = p.jourDebut; state.momentDebut = p.momentDebut;
+    state.jourFin = p.jourFin; state.momentFin = p.momentFin;
+    regenererSlots();
+  }
   SLOTS.forEach(s=>{
     state.custom[s.id] = p.custom && p.custom[s.id] ? { ...p.custom[s.id] } : defautAttendance();
     state.dispo[s.id] = (p.dispo && p.dispo[s.id]) || DISPO_DEFAUT_GENERIQUE;
@@ -562,12 +615,15 @@ function appliquerProfilType(){
   return true;
 }
 function copierJourVersSuivant(jourIndex){
-  const jourActuel = JOURS_SEMAINE[jourIndex];
-  const jourSuivant = JOURS_SEMAINE[jourIndex+1];
-  if(!jourSuivant) return;
+  const joursSemaine = joursDeLaSemaineChoisie();
+  const jourActuel = joursSemaine[jourIndex];
+  const jourSuivant = joursSemaine[jourIndex+1];
+  if(!jourActuel || !jourSuivant) return;
+  const idsActuels = new Set(SLOTS.map(s=>s.id));
   MOMENTS_JOUR.forEach(moment=>{
     const idSrc = (jourActuel+'_'+moment).toLowerCase();
     const idDst = (jourSuivant+'_'+moment).toLowerCase();
+    if(!idsActuels.has(idSrc) || !idsActuels.has(idDst)) return;
     state.custom[idDst] = { ...state.custom[idSrc] };
     state.dispo[idDst] = state.dispo[idSrc];
     state.rapideReconso[idDst] = state.rapideReconso[idSrc];
@@ -579,6 +635,7 @@ function copierJourVersSuivant(jourIndex){
 let state = {
   step: 1,
   mode: 'custom',
+  jourDebut: 'Lundi', momentDebut: 'Midi', jourFin: 'Dimanche', momentFin: 'Soir',
   custom: {},
   dispo: {},
   rapideReconso: {},
@@ -598,16 +655,20 @@ let state = {
   repetitionsForcees: [],
   consultation: { etape:'portions', portions:4, recetteId:null, filtres:{ vegetarien:null, viandes:[], saisons:[], rythme:null } },
 };
-function initCustomIfNeeded(){
-  if(Object.keys(state.custom).length) return;
-  const charge = appliquerProfilType();
-  if(charge){ state.profilChargeAuDepart = true; return; }
-  SLOTS.forEach(s => {
-    state.custom[s.id] = defautAttendance();
-    state.dispo[s.id] = DISPO_DEFAUT_GENERIQUE;
-    state.rapideReconso[s.id] = false;
-    state.multiPrep[s.id] = 1;
+function assurerDefautsPourSlotsActuels(){
+  SLOTS.forEach(s=>{
+    if(!state.custom[s.id]) state.custom[s.id] = defautAttendance();
+    if(!state.dispo[s.id]) state.dispo[s.id] = DISPO_DEFAUT_GENERIQUE;
+    if(state.rapideReconso[s.id] === undefined) state.rapideReconso[s.id] = false;
+    if(!state.multiPrep[s.id]) state.multiPrep[s.id] = 1;
   });
+}
+function initCustomIfNeeded(){
+  if(!Object.keys(state.custom).length){
+    const charge = appliquerProfilType();
+    if(charge) state.profilChargeAuDepart = true;
+  }
+  assurerDefautsPourSlotsActuels();
 }
 function attendanceFor(slotId){
   initCustomIfNeeded();
@@ -764,7 +825,7 @@ function genererPropositionAuto(criteres){
   const repetitionsForcees = []; // { lot, id } quand aucune recette fraîche n'était disponible
   lots.forEach(lot=>{
     const tailleLot = lot.slots.length;
-    const jourLot = lot.slots[0].jourIndex;
+    const jourLot = lot.slots[0].position;
     let opts = candidatsPourLot(lot);
     const sansDoublon = opts.filter(r=>!dejaChoisies.has(r.id));
     const repetitionForcee = sansDoublon.length === 0 && opts.length > 0;
@@ -1286,6 +1347,29 @@ function renderCorpusRetrait(){
     </div>` : ''}
   </div>`;
 }
+function renderSelecteurPeriode(){
+  return `<div class="periode-select">
+    <div class="periode-title">Sur quelle période porte cette semaine ?</div>
+    <div class="periode-champs">
+      <div class="periode-champ">
+        <label>Début</label>
+        <div class="periode-inputs">
+          <select id="jourDebutSelect">${JOURS_SEMAINE.map(j=>`<option value="${j}" ${state.jourDebut===j?'selected':''}>${j}</option>`).join('')}</select>
+          <select id="momentDebutSelect">${MOMENTS_JOUR.map(m=>`<option value="${m}" ${state.momentDebut===m?'selected':''}>${m}</option>`).join('')}</select>
+        </div>
+      </div>
+      <span class="periode-fleche">→</span>
+      <div class="periode-champ">
+        <label>Fin</label>
+        <div class="periode-inputs">
+          <select id="jourFinSelect">${JOURS_SEMAINE.map(j=>`<option value="${j}" ${state.jourFin===j?'selected':''}>${j}</option>`).join('')}</select>
+          <select id="momentFinSelect">${MOMENTS_JOUR.map(m=>`<option value="${m}" ${state.momentFin===m?'selected':''}>${m}</option>`).join('')}</select>
+        </div>
+      </div>
+    </div>
+    <p class="periode-note">${SLOTS.length} repas sur cette période : de <strong>${state.jourDebut} ${state.momentDebut.toLowerCase()}</strong> à <strong>${state.jourFin} ${state.momentFin.toLowerCase()}</strong>. Vous pourrez toujours retirer un repas précis plus bas si besoin.</p>
+  </div>`;
+}
 function renderStep1(){
   initCustomIfNeeded();
   const profilExistant = !!chargerProfilType();
@@ -1293,6 +1377,7 @@ function renderStep1(){
   html += `<div style="padding:0 20px;"><button class="cta secondary" id="ouvrirConsultation" style="margin-top:0;">📖 Consulter une recette du corpus</button></div>`;
   html += `<section><h2>1. Décrivez votre semaine</h2>
   <p class="sub">Pour chaque repas de midi et de soir : combien de convives, et de combien de temps vous disposez pour cuisiner. L'outil s'occupe ensuite de calculer les quantités et le bon moment pour cuisiner ou reconsommer.</p>`;
+  html += renderSelecteurPeriode();
   if(state.profilChargeAuDepart){
     html += `<div class="profil-note">↩️ Cette semaine a été pré-remplie à partir de votre profil-type enregistré. Modifiez-la librement, elle ne sera sauvegardée que si vous cliquez sur « Enregistrer ».</div>`;
   }
@@ -1332,6 +1417,7 @@ const DISPO_LABELS = {
 };
 
 function renderGrilleCustom(){
+  const joursSemaine = joursDeLaSemaineChoisie();
   const jours = [];
   SLOTS.forEach(s=>{
     let grp = jours.find(j=>j.jour===s.jour);
@@ -1340,8 +1426,8 @@ function renderGrilleCustom(){
   });
   let html = `<div style="margin-top:16px;"><p class="sub" style="margin-bottom:8px;">Pour chaque repas : le nombre de convives, et votre disponibilité pour cuisiner ce jour-là.</p>`;
   jours.forEach(grp=>{
-    const dernierJour = grp.jourIndex === JOURS_SEMAINE.length-1;
-    html += `<div class="grid-day"><div class="jour-label">${grp.jour}${!dernierJour?`<button class="retire-btn" data-copier-jour="${grp.jourIndex}" title="Copier midi et soir de ${grp.jour} sur ${JOURS_SEMAINE[grp.jourIndex+1]}">📋 Copier sur ${JOURS_SEMAINE[grp.jourIndex+1]} →</button>`:''}</div>`;
+    const dernierJour = grp.jourIndex === joursSemaine.length-1;
+    html += `<div class="grid-day"><div class="jour-label">${grp.jour}${!dernierJour?`<button class="retire-btn" data-copier-jour="${grp.jourIndex}" title="Copier midi et soir de ${grp.jour} sur ${joursSemaine[grp.jourIndex+1]}">📋 Copier sur ${joursSemaine[grp.jourIndex+1]} →</button>`:''}</div>`;
     grp.slots.forEach(s=>{
       const att = state.custom[s.id];
       const dispo = state.dispo[s.id];
@@ -1435,17 +1521,30 @@ function renderStep2(){
 }
 
 function renderCalendrierLot(lot){
-  const rows = lot.slots.filter(s=>!s.phantom).map(s=>{
-    let icone = '🍽', texte = 'consommées';
-    if(s.role==='prep' || s.role==='prep_rapide'){ icone='🔪'; texte='préparées'; }
-    if(s.role==='rapide_reconso'){ icone='🍽+'; texte='consommées avec complément rapide'; }
-    return `<div class="calendrier-row ${s.role==='prep'||s.role==='prep_rapide'?'prep':''}">${icone} <strong>${s.jour} ${s.moment.toLowerCase()}</strong> — ${fmtPortions(s.portionsRepas)} portion${s.portionsRepas>1?'s':''} ${texte}</div>`;
-  });
+  let rows = [];
+  if(lot.slots[0] && lot.slots[0].phantom){
+    const p = lot.slots[0];
+    rows.push(`<div class="calendrier-row prep">🔪 <strong>${p.jour} ${p.moment.toLowerCase()}</strong> — préparé en même temps que les autres plats de cette session, sans portion consommée ce soir-là</div>`);
+  }
+  rows = rows.concat(lot.slots.filter(s=>!s.phantom).map(s=>{
+    const estPrep = s.role==='prep' || s.role==='prep_rapide';
+    let texte = `${fmtPortions(s.portionsRepas)} portion${s.portionsRepas>1?'s':''} consommée${s.portionsRepas>1?'s':''}`;
+    if(estPrep) texte += ' (jour de préparation)';
+    if(s.role==='rapide_reconso') texte += ' + complément rapide';
+    const icone = estPrep ? '🔪 🍽' : '🍽';
+    return `<div class="calendrier-row ${estPrep?'prep':''}">${icone} <strong>${s.jour} ${s.moment.toLowerCase()}</strong> — ${texte}</div>`;
+  }));
   return `<div class="calendrier">${rows.join('')}</div>`;
 }
 
 function renderStep3(){
-  let html = `<section><h2>3. Une recette par préparation</h2><p class="sub">${state.selectionMode==='auto' ? 'Proposition générée — modifie ce que tu veux avant de continuer.' : 'Les quantités viennent de la semaine décrite à l\'étape 1.'}</p>`;
+  let html = `<section><h2>3. Une recette par préparation</h2><p class="sub">${state.selectionMode==='auto' ? 'Proposition générée — modifie ce que tu veux avant de continuer.' : 'Les quantités viennent de la semaine décrite à l\'étape 1.'}</p>
+  <div class="recap" style="margin-bottom:16px;">
+    <div class="recap-title">Emploi du temps de la semaine</div>
+    <p style="font-size:12.5px;color:#5b544a;margin:0 0 4px;">Se met à jour automatiquement à chaque changement de recette ci-dessous.</p>
+    ${renderEmploiDuTemps()}
+  </div>
+  `;
 
   if(state.repetitionsForcees && state.repetitionsForcees.length){
     html += `<div class="warn" style="margin-bottom:14px;">⚠ Le corpus ne contenait pas assez de recettes compatibles pour éviter toute répétition cette semaine : <strong>${state.repetitionsForcees.map(r=>`${r.nom} (${r.label})`).join(', ')}</strong> revient plus d'une fois. Pour l'éviter, tu peux assouplir un filtre (Thermomix, par exemple), changer la disponibilité de certains repas, ou enrichir le corpus avec d'autres recettes compatibles.</div>`;
@@ -1491,7 +1590,7 @@ function renderStep3(){
 function renderStep4(){
   const { parRayon, sansQuantite } = genererListe();
   const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents & légumineuses','Conserves, sauces & condiments','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
-  let html = `<div class="ticket-wrap"><section style="padding-top:8px;"><h2>4. Ticket de courses</h2>
+  let html = `<div class="ticket-wrap"><section style="padding-top:8px;"><h2>4. Liste de courses</h2>
   <p class="sub">Coche au fur et à mesure. Les variantes d'un même ingrédient (ex. « bœuf haché » et « viande de bœuf hachée ») sont regroupées côte à côte pour faciliter le repérage, mais restent des lignes séparées.</p></section>
   <div class="ticket"><h3>Courses — semaine prochaine</h3><div class="meta">Semaine sur-mesure</div>`;
   ordreRayons.forEach(rayon=>{
@@ -1948,6 +2047,19 @@ function attachEvents(){
     render();
   });
 
+  ['jourDebutSelect','momentDebutSelect','jourFinSelect','momentFinSelect'].forEach(id=>{
+    const sel = document.getElementById(id);
+    if(sel) sel.addEventListener('change', ()=>{
+      state.jourDebut = document.getElementById('jourDebutSelect').value;
+      state.momentDebut = document.getElementById('momentDebutSelect').value;
+      state.jourFin = document.getElementById('jourFinSelect').value;
+      state.momentFin = document.getElementById('momentFinSelect').value;
+      regenererSlots();
+      state.choixLots = {};
+      state.profilVientDetreEnregistre = false;
+      render();
+    });
+  });
   const sauvegarderProfilBtn = document.getElementById('sauvegarderProfil');
   if(sauvegarderProfilBtn) sauvegarderProfilBtn.addEventListener('click', ()=>{ sauvegarderProfilType(); render(); });
   const rechargerProfilBtn = document.getElementById('rechargerProfil');
@@ -2062,6 +2174,7 @@ document.getElementById('boutonAccueilFixe').addEventListener('click', ()=>{
     render();
   });
 });
+regenererSlots();
 (async () => {
   await chargerCorpusPersonnalise();
   await chargerHistorique();
