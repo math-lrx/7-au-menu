@@ -285,10 +285,17 @@ function alerterAction(message){
   overlay.querySelector('.confirm-ok').addEventListener('click', fermer);
 }
 const VERSION_INFO = {
-  version: '2.1',
-  date: '2 septembre 2026',
+  version: '2.3',
+  date: '3 septembre 2026',
   changelog: [
-    { version: '2.1', date: '2 septembre 2026', notes: [
+    { version: '2.3', date: '3 septembre 2026', notes: [
+      "Les assaisonnements concentrés (sel, poivre, épices, herbes séchées, vinaigre, moutarde) ne montent plus de façon strictement linéaire au-delà de 10,5 portions : passé ce seuil, chaque portion supplémentaire ne compte que pour moitié dans le calcul des quantités, conformément à la façon dont ces arômes se comportent réellement en cuisine. En dessous de 10,5 portions, rien ne change. L'huile n'est volontairement pas concernée.",
+    ]},
+    { version: '2.2', date: 'précédemment', notes: [
+      "Correction de plusieurs classements d'ingrédients suite à un audit approfondi : gingembre/citronnelle moulus, lait de coco, fruits secs (noisette, amande, noix, pignon) même grillés ou concassés, mayonnaise et pestos, et une formulation uniformisée pour les ingrédients « frais ou surgelé ».",
+      "Le générateur automatique exclut désormais strictement, sur l'ensemble de la semaine, les couples de recettes quasi identiques (comme les deux dahls du corpus), sauf si aucune autre solution n'existe.",
+    ]},
+    { version: '2.1', date: 'précédemment', notes: [
       "Correction de la recette « Escalope de poulet à la provençale au Thermomix » (assaisonnement enrichi, quantités de légumes ajustées, procédure détaillée pour les grands formats).",
       "L'appli sait désormais afficher les instructions détaillées pour les recettes qui doivent être préparées en plusieurs tournées au-delà d'un certain nombre de portions.",
     ]},
@@ -809,6 +816,10 @@ function similarite(r1, r2){
   return Math.min(1, Math.max(parIngredients, parNom));
 }
 const SEUIL_ALERTE_SIMILARITE = 0.35;
+/* Au-delà de ce seuil plus élevé, deux recettes sont considérées comme quasi les mêmes plat
+   (ex. les deux dahls du corpus) : on les exclut alors l'une de l'autre sur toute la semaine,
+   pas seulement au sein d'une même session multi-plats, sauf si aucune autre option ne reste. */
+const SEUIL_EXCLUSION_SIMILARITE = 0.6;
 function recetteSimilairePlusProche(recette, autresIds){
   let meilleur = null, meilleurScore = 0;
   autresIds.forEach(id=>{
@@ -853,6 +864,12 @@ function genererPropositionAuto(criteres){
       const soeurs = choixParGroupe[lot.groupePrep];
       const sansSoeurSimilaire = opts.filter(o=>!soeurs.some(s=>similarite(o,s) > SEUIL_ALERTE_SIMILARITE));
       if(sansSoeurSimilaire.length) opts = sansSoeurSimilaire;
+    }
+    /* Exclusion stricte des quasi-doublons culinaires sur l'ensemble de la semaine (pas seulement
+       au sein d'une même session) : n'agit que si une alternative suffisamment différente existe. */
+    if(recettesChoisiesObjets.length){
+      const sansTropSimilaire = opts.filter(o=>!recettesChoisiesObjets.some(c=>c.id!==o.id && similarite(o,c) > SEUIL_EXCLUSION_SIMILARITE));
+      if(sansTropSimilaire.length) opts = sansTropSimilaire;
     }
     if(criteres.saisons && criteres.saisons.length){
       const f = opts.filter(o=>o.saisonnalite.includes('toute_saison') || o.saisonnalite.some(s=>criteres.saisons.includes(s)));
@@ -935,10 +952,46 @@ const RAYON_MOTS = [
      déshydraté (donc un produit d'épicerie, pas un produit frais) ne soit jamais classé comme
      produit frais simplement parce que son nom contient aussi le mot du légume de base
      (ex. "Poivrons confits", "Tomates pelées", "Coulis de tomates"). */
-  ['Conserves, sauces & condiments', ['sauce','vinaigre','huile','épice','epice','cumin','paprika','curcuma','harissa','moutarde','sirop','cassonade','sucre','miel','bouillon','concentré','concentre','concassé','concasse','concassée','concassees','concassées','coulis','chair de tomate','pelé','pele','pelée','pelee','pelés','peles','pelées','pelees','confit','confite','confits','confites','grillé','grille','grillée','grillee','grillés','grilles','grillées','grillees','déshydraté','deshydrate','déshydratée','deshydratee','déshydratés','deshydrates','déshydratées','deshydratees','séché','seche','séchée','sechee','séchés','seches','séchées','sechees','au sirop','maïs','mais','curry','tahini','pignon de pin','pignons de pin','guacamole','olive','câpre','capre']],
+  ['Conserves, sauces & condiments', ['sauce','vinaigre','huile','épice','epice','cumin','paprika','curcuma','harissa','moutarde','sirop','cassonade','sucre','miel','bouillon','concentré','concentre','concassé','concasse','concassée','concassees','concassées','coulis','chair de tomate','pelé','pele','pelée','pelee','pelés','peles','pelées','pelees','confit','confite','confits','confites','grillé','grille','grillée','grillee','grillés','grilles','grillées','grillees','déshydraté','deshydrate','déshydratée','deshydratee','déshydratés','deshydrates','déshydratées','deshydratees','séché','seche','séchée','sechee','séchés','seches','séchées','sechees','au sirop','maïs','mais','curry','tahini','guacamole','olive','câpre','capre','mayonnaise','pesto','gomasio','gingembre moulu','gingembre en poudre','citronnelle moulue']],
   ['Féculents & légumineuses', ['riz','pâtes','pates','tagliatelle','penne','nouille','macaroni','linguine','rigatoni','spaghetti','lasagne','tortellini','fusilli','farfalle','vermicelle','épeautre','epeautre','quinoa','boulgour','couscous','lentille','haricot rouge','haricots rouges','haricot blanc','haricots blancs','pois chiche','pois cassé','pois casse','fève','feve','conchiglione','coquillette','orzo','gnocchi','chapelure','farine']],
   ['Fruits & légumes frais', ['tomate','concombre','poivron','carotte','oignon','échalote','echalote','ail','céleri','celeri','champignon','portobello','avocat','citron','salade','laitue','mesclun','mâche','mache','radis','épinard','epinard','courgette','brocoli','poireau','poireaux','figue','persil','coriandre','menthe','aneth','origan frais','basilic','thym frais','romarin','ciboulette','roquette','sauge','cerfeuil','estragon','cébette','cebette','pomme verte','aubergine','pomme de terre','pommes de terre','pomme grenaille','petit pois','petits pois','haricot vert','haricots verts','gingembre','citronnelle','piment jalapeño','piment rouge','piment vert','piment oiseau','pastèque','pasteque','chou','choux','ananas','navet','potimarron','raisin noir']],
 ];
+/* Fruits secs et graines : leur nature (noisette, amande, noix...) doit l'emporter sur leur mode
+   de préparation — sans cette vérification prioritaire, "Noisette grillée" ou "Noix concassée"
+   seraient classés à tort avec les conserves/sauces à cause du mot "grillé" ou "concassé". */
+const FRUITS_SECS = ['noisette','amande','noix','cacahuète','cacahuete','cajou','pistache','pignon'];
+/* Laits végétaux : à ranger avec l'épicerie/conserves (ils sont vendus en brique ou boîte, pas au
+   rayon frais) plutôt qu'avec la crèmerie, où le mot-clé générique "lait" les enverrait sinon. */
+const LAITS_VEGETAUX = ['lait de coco','lait d\'amande','lait de soja','lait de soya','lait d\'avoine','lait de riz','lait de noisette'];
+/* Assaisonnements concentrés : au-delà d'un certain volume, le sel, les épices, les herbes
+   séchées, le vinaigre et la moutarde ne se mettent pas à l'échelle de façon linéaire — la
+   perception du goût n'est elle-même pas linéaire, et ces arômes s'accumulent différemment en
+   grand volume. La référence est ancrée sur 10,5 portions (le plus grand format déjà utilisé
+   couramment) : en dessous, rien ne change ; au-delà, chaque portion supplémentaire ne compte
+   que pour moitié dans le calcul de ces ingrédients précis. L'huile n'est volontairement pas
+   concernée : elle sert souvent de corps gras fonctionnel (friture, sauce), pas d'assaisonnement
+   pur. Cette règle reste une aide au dimensionnement des courses — l'assaisonnement final se
+   goûte et s'ajuste toujours à la cuisson.
+   Formule : facteur = portions si portions ≤ 10,5, sinon 10,5 + (portions − 10,5) × 0,5. */
+const SEUIL_ASSAISONNEMENT = 10.5;
+const MOTS_ASSAISONNEMENT_CONCENTRE = [
+  'sel','poivre',
+  'épice','epice','cumin','paprika','curcuma','harissa','muscade','cannelle','safran','massalé','massale','colombo','curry',
+  'piment d\'espelette','piment fumé','piment fume','piment moulu','piment en poudre','piment doux fumé','piment doux fume',
+  'herbes de provence','origan','thym','laurier',
+  'gingembre moulu','gingembre en poudre','citronnelle moulue',
+  'moutarde','vinaigre','gomasio',
+];
+function estAssaisonnementConcentre(nom){
+  const n = nom.toLowerCase().replace(/\([^)]*\)/g, ' ');
+  return MOTS_ASSAISONNEMENT_CONCENTRE.some(m=>motDansTexte(m, n));
+}
+function facteurEchelle(portions, nom){
+  if(portions > SEUIL_ASSAISONNEMENT && estAssaisonnementConcentre(nom)){
+    return SEUIL_ASSAISONNEMENT + (portions - SEUIL_ASSAISONNEMENT) * 0.5;
+  }
+  return portions;
+}
 /* Normalise pour la comparaison : minuscules, accents retirés, et les ligatures françaises
    (œ, æ) explicitées — car la décomposition Unicode standard ne les sépare pas (contrairement
    aux lettres accentuées), ce qui pouvait auparavant faire dépendre le classement de la façon
@@ -949,6 +1002,24 @@ function normaliserPourComparaison(s){
 function classifierRayon(nom){
   const brut = nom.toLowerCase();
   const n = brut.replace(/\([^)]*\)/g, ' ');
+  /* "Surgelé" est vérifié sur le nom complet (avant retrait des parenthèses) : cette précision
+     figure parfois uniquement entre parenthèses (ex. "Épinard (frais ou surgelé)"), et doit
+     produire le même classement que lorsqu'elle est écrite en clair (ex. "Petit pois frais ou
+     surgelé"), plutôt qu'un résultat différent selon la simple présence de parenthèses. */
+  if(motDansTexte('surgelé', brut) || motDansTexte('surgele', brut)){
+    return { rayon:'Surgelés', motCle: sansAccents(n.trim()) };
+  }
+  /* Les laits végétaux se vendent en brique/boîte au rayon épicerie, pas au rayon frais : à
+     vérifier avant la catégorie Crèmerie, qui les attraperait sinon via le mot "lait" seul. */
+  if(LAITS_VEGETAUX.some(m=>motDansTexte(m, n))){
+    return { rayon:'Conserves, sauces & condiments', motCle: sansAccents(n.trim()) };
+  }
+  /* La nature d'un fruit à coque (noisette, amande, noix...) l'emporte sur son mode de
+     préparation : à vérifier avant "Conserves", qui les attraperait sinon via "grillé" ou
+     "concassé" alors qu'ils relèvent de l'épicerie, pas des conserves de légumes. */
+  if(FRUITS_SECS.some(m=>motDansTexte(m, n))){
+    return { rayon:'Épicerie', motCle: sansAccents(n.trim()) };
+  }
   /* Les indices de mise en conserve (boîte, bocal...) sont parfois précisés uniquement entre
      parenthèses (ex. "Tomates en dés (boîte)") : on les cherche donc dans le nom complet, pas
      seulement dans la version "nettoyée" des parenthèses utilisée pour le reste du classement. */
@@ -1005,7 +1076,7 @@ function substituerPlaceholders(texte, recette, portions){
     const ing = recette.ingredients.find(i=>i.placeholder===ph);
     if(!ing || ing.qte==null) return m;
     const u = baseUnit(ing.unite);
-    const q = arrondir(ing.qte*portions, u);
+    const q = arrondir(ing.qte*facteurEchelle(portions, ing.nom), u);
     return `${fmtQte(q,u)} de ${ing.nom.toLowerCase()}`;
   });
 }
@@ -1044,7 +1115,7 @@ function genererListe(){
         totaux[key] = { nom: nomClair, unite:u, qte:0, rayon: classement.rayon, motCle: classement.motCle };
         provenance[key] = new Set();
       }
-      totaux[key].qte += ing.qte * sel.portions;
+      totaux[key].qte += ing.qte * facteurEchelle(sel.portions, ing.nom);
       provenance[key].add(`${sel.label} · ${recette.nom}`);
     });
   });
@@ -1677,7 +1748,7 @@ function renderFicheRecette(recette, p){
     <div class="carnet-section-title">Ingrédients <span class="unit">(pour ${fmtPortions(p)} portions)</span></div>
     <div class="carnet-ingredients">
       ${recette.ingredients.filter(ing=>ing.qte!=null).map(ing=>{
-        const u = baseUnit(ing.unite); const q = arrondir(ing.qte*p, u);
+        const u = baseUnit(ing.unite); const q = arrondir(ing.qte*facteurEchelle(p, ing.nom), u);
         return `<div class="carnet-ing-row"><span>${ing.nom}</span><span class="q">${fmtQte(q,u)}</span></div>`;
       }).join('')}
     </div>
