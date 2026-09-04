@@ -298,10 +298,16 @@ function alerterAction(message){
   overlay.querySelector('.confirm-ok').addEventListener('click', fermer);
 }
 const VERSION_INFO = {
-  version: '2.4',
+  version: '2.5',
   date: '3 septembre 2026',
   changelog: [
-    { version: '2.4', date: '3 septembre 2026', notes: [
+    { version: '2.5', date: '3 septembre 2026', notes: [
+      "Correction d'un bug important : quand une semaine se termine sur le même jour où elle commence (ex. « mardi soir » à « mardi midi de la semaine suivante »), l'appli fusionnait par erreur les deux occurrences de ce jour en un seul bloc à l'écran. Chaque jour est désormais correctement distingué, avec la mention « (semaine suivante) » quand un jour revient une deuxième fois dans la même période.",
+      "Nouvelle rubrique « Épices & herbes séchées », séparée des conserves/sauces : le cumin, le thym, l'origan et le laurier ne sont plus mélangés avec les bocaux et sauces.",
+      "Les sauces contenant un mot de viande ou de poisson dans leur nom (ex. « Sauce poisson ») sont désormais correctement classées avec les sauces, plus avec la boucherie/poissonnerie.",
+      "Les légumineuses déjà cuites (pois chiches, lentilles, haricots... vendus prêts à l'emploi) sont désormais classées avec les conserves plutôt qu'avec les légumineuses sèches — c'est un rayon différent en magasin.",
+    ]},
+    { version: '2.4', date: 'précédemment', notes: [
       "Estimation du coût par portion pour chaque recette, visible à l'étape 3 (dans la liste déroulante et sous la recette choisie), basée sur des prix moyens de supermarché mis à jour manuellement par Claude à chaque session de travail — donc sans connexion internet nécessaire à l'usage.",
       "Une précaution d'usage accompagne systématiquement ces estimations : prix moyens, pas ceux d'une enseigne précise, à prendre comme repère de comparaison entre recettes plutôt que comme budget garanti.",
     ]},
@@ -794,10 +800,18 @@ function regenererSlots(){
 /* Liste ordonnée des jours (sans doublon) effectivement couverts par la semaine choisie — utile
    pour "copier sur le jour suivant" et pour savoir si on est sur le dernier jour, puisque l'ordre
    n'est plus forcément Lundi->Dimanche. */
+function joursBrutsParIndex(){
+  const arr = [];
+  SLOTS.forEach(s=>{ if(arr[s.jourIndex] === undefined) arr[s.jourIndex] = s.jour; });
+  return arr;
+}
 function joursDeLaSemaineChoisie(){
-  const vus = [];
-  SLOTS.forEach(s=>{ if(!vus.includes(s.jour)) vus.push(s.jour); });
-  return vus;
+  const bruts = joursBrutsParIndex();
+  const vuNoms = {};
+  return bruts.map(jour=>{
+    vuNoms[jour] = (vuNoms[jour]||0) + 1;
+    return vuNoms[jour] > 1 ? `${jour} (semaine suivante)` : jour;
+  });
 }
 const DEFAUT_CONVIVES = { adulte:2, grand:0, petit:0 };
 function defautAttendance(){ return { ...DEFAUT_CONVIVES, retire:false }; }
@@ -833,7 +847,7 @@ function appliquerProfilType(){
   return true;
 }
 function copierJourVersSuivant(jourIndex){
-  const joursSemaine = joursDeLaSemaineChoisie();
+  const joursSemaine = joursBrutsParIndex();
   const jourActuel = joursSemaine[jourIndex];
   const jourSuivant = joursSemaine[jourIndex+1];
   if(!jourActuel || !jourSuivant) return;
@@ -1142,12 +1156,20 @@ const RAYON_MOTS = [
   ['Boissons & alcools de cuisine', ['vin rouge','vin blanc','vin jaune','vin','bière','cidre']],
   ['Boucherie, volaille & poissonnerie', ['poulet','volaille','bœuf','boeuf','porc','viande','jambon','lard','lardon','chorizo','saucisse','chipolata','merguez','pancetta','bacon','canard','poularde','thon','saumon','poisson','crevette','morue','cabillaud']],
   ['Crèmerie & œufs', ['lait','yaourt','yogourt','skyr','œuf','oeuf','fromage','crème','creme','beurre','burrata','ricotta','mozzarella','feta','comté','comte','cheddar','parmesan','emmental','brillat-savarin','reblochon','pecorino']],
+  /* Épices & herbes séchées : catégorie à part de "Conserves, sauces & condiments" — un cumin ou
+     un thym séché ne se rangent pas mentalement avec des sauces ou des bocaux, même si les deux
+     sont des produits d'épicerie sèche. Le thym et l'origan "bruts" (sans précision "frais") sont
+     ici par défaut : la forme séchée est la plus courante pour un ingrédient de garde-manger. */
+  ['Épices & herbes séchées', ['épice','epice','cumin','paprika','curcuma','harissa','muscade','cannelle','safran','massalé','massale','colombo','curry','gomasio','gingembre moulu','gingembre en poudre','citronnelle moulue','thym','origan','laurier','anis étoilé','anis etoile','piment d\'espelette','piment fumé','piment fume','piment moulu','piment en poudre','piment doux fumé','piment doux fume']],
   /* Conserves, sauces, condiments et formes préparées/en bocal : cette rubrique est volontairement
      vérifiée AVANT "Fruits & légumes frais", pour qu'un légume vendu en conserve, confit ou
      déshydraté (donc un produit d'épicerie, pas un produit frais) ne soit jamais classé comme
      produit frais simplement parce que son nom contient aussi le mot du légume de base
-     (ex. "Poivrons confits", "Tomates pelées", "Coulis de tomates"). */
-  ['Conserves, sauces & condiments', ['sauce','vinaigre','huile','épice','epice','cumin','paprika','curcuma','harissa','moutarde','sirop','cassonade','sucre','miel','bouillon','concentré','concentre','concassé','concasse','concassée','concassees','concassées','coulis','chair de tomate','pelé','pele','pelée','pelee','pelés','peles','pelées','pelees','confit','confite','confits','confites','grillé','grille','grillée','grillee','grillés','grilles','grillées','grillees','déshydraté','deshydrate','déshydratée','deshydratee','déshydratés','deshydrates','déshydratées','deshydratees','séché','seche','séchée','sechee','séchés','seches','séchées','sechees','au sirop','maïs','mais','curry','tahini','guacamole','olive','câpre','capre','mayonnaise','pesto','gomasio','gingembre moulu','gingembre en poudre','citronnelle moulue']],
+     (ex. "Poivrons confits", "Tomates pelées", "Coulis de tomates"). Les légumineuses déjà cuites
+     (donc vendues en conserve/bocal, prêtes à l'emploi) y sont également, plutôt qu'avec les
+     légumineuses sèches — c'est un rayon différent en magasin. */
+  ['Conserves, sauces & condiments', ['sauce','vinaigre','huile','moutarde','sirop','cassonade','sucre','miel','bouillon','concentré','concentre','concassé','concasse','concassée','concassees','concassées','coulis','chair de tomate','pelé','pele','pelée','pelee','pelés','peles','pelées','pelees','confit','confite','confits','confites','grillé','grille','grillée','grillee','grillés','grilles','grillées','grillees','déshydraté','deshydrate','déshydratée','deshydratee','déshydratés','deshydrates','déshydratées','deshydratees','séché','seche','séchée','sechee','séchés','seches','séchées','sechees','au sirop','maïs','mais','tahini','guacamole','olive','câpre','capre','mayonnaise','pesto',
+    'pois chiche cuit','pois chiches cuits','pois chiche cuits','pois cassé cuit','pois cassés cuits','pois casse cuit','lentille cuite','lentilles cuites','haricot rouge cuit','haricots rouges cuits','haricot blanc cuit','haricots blancs cuits','fève cuite','fèves cuites','feve cuite','feves cuites']],
   ['Féculents & légumineuses', ['riz','pâtes','pates','tagliatelle','penne','nouille','macaroni','linguine','rigatoni','spaghetti','lasagne','tortellini','fusilli','farfalle','vermicelle','épeautre','epeautre','quinoa','boulgour','couscous','lentille','haricot rouge','haricots rouges','haricot blanc','haricots blancs','pois chiche','pois cassé','pois casse','fève','feve','conchiglione','coquillette','orzo','gnocchi','chapelure','farine']],
   ['Fruits & légumes frais', ['tomate','concombre','poivron','carotte','oignon','échalote','echalote','ail','céleri','celeri','champignon','portobello','avocat','citron','salade','laitue','mesclun','mâche','mache','radis','épinard','epinard','courgette','brocoli','poireau','poireaux','figue','persil','coriandre','menthe','aneth','origan frais','basilic','thym frais','romarin','ciboulette','roquette','sauge','cerfeuil','estragon','cébette','cebette','pomme verte','aubergine','pomme de terre','pommes de terre','pomme grenaille','petit pois','petits pois','haricot vert','haricots verts','gingembre','citronnelle','piment jalapeño','piment rouge','piment vert','piment oiseau','pastèque','pasteque','chou','choux','ananas','navet','potimarron','raisin noir']],
 ];
@@ -1205,6 +1227,16 @@ function classifierRayon(nom){
   if(motDansTexte('surgelé', brut) || motDansTexte('surgele', brut)){
     return { rayon:'Surgelés', motCle: sansAccents(n.trim()) };
   }
+  /* Une "sauce" reste une sauce même quand son nom contient un mot de protéine ou de
+     produit laitier (ex. "Sauce poisson", hypothétiquement "sauce fromage") : on le
+     vérifie donc avant les catégories Boucherie/Crèmerie, qui l'intercepteraient sinon. */
+  if(motDansTexte('sauce', n)){
+    return { rayon:'Conserves, sauces & condiments', motCle: sansAccents(n.trim()) };
+  }
+  /* "Thym frais"/"origan frais" doivent l'emporter sur le mot-clé nu "thym"/"origan" (qui vise
+     par défaut la forme séchée, en épicerie) — sinon la précision "frais" serait ignorée. */
+  if(motDansTexte('thym frais', n)) return { rayon:'Fruits & légumes frais', motCle: 'thym' };
+  if(motDansTexte('origan frais', n)) return { rayon:'Fruits & légumes frais', motCle: 'origan' };
   /* Les laits végétaux se vendent en brique/boîte au rayon épicerie, pas au rayon frais : à
      vérifier avant la catégorie Crèmerie, qui les attraperait sinon via le mot "lait" seul. */
   if(LAITS_VEGETAUX.some(m=>motDansTexte(m, n))){
@@ -1704,8 +1736,8 @@ function renderGrilleCustom(){
   const joursSemaine = joursDeLaSemaineChoisie();
   const jours = [];
   SLOTS.forEach(s=>{
-    let grp = jours.find(j=>j.jour===s.jour);
-    if(!grp){ grp = {jour:s.jour, jourIndex:s.jourIndex, slots:[]}; jours.push(grp); }
+    let grp = jours.find(j=>j.jourIndex===s.jourIndex);
+    if(!grp){ grp = {jour:joursSemaine[s.jourIndex], jourIndex:s.jourIndex, slots:[]}; jours.push(grp); }
     grp.slots.push(s);
   });
   let html = `<div style="margin-top:16px;"><p class="sub" style="margin-bottom:8px;">Pour chaque repas : le nombre de convives, et votre disponibilité pour cuisiner ce jour-là.</p>`;
@@ -1874,7 +1906,7 @@ function renderStep3(){
 
 function renderStep4(){
   const { parRayon, sansQuantite } = genererListe();
-  const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents & légumineuses','Conserves, sauces & condiments','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
+  const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents & légumineuses','Conserves, sauces & condiments','Épices & herbes séchées','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
   let html = `<div class="ticket-wrap"><section style="padding-top:8px;"><h2>4. Liste de courses</h2>
   <p class="sub">Coche au fur et à mesure. Les variantes d'un même ingrédient (ex. « bœuf haché » et « viande de bœuf hachée ») sont regroupées côte à côte pour faciliter le repérage, mais restent des lignes séparées.</p></section>
   <div class="ticket"><h3>Courses — semaine prochaine</h3><div class="meta">Semaine sur-mesure</div>`;
@@ -1902,11 +1934,12 @@ function renderStep4(){
 }
 
 function renderEmploiDuTemps(){
+  const joursSemaine = joursDeLaSemaineChoisie();
   const jours = [];
   const lots = construirePlanSurMesure();
   SLOTS.forEach(s=>{
-    let grp = jours.find(j=>j.jour===s.jour);
-    if(!grp){ grp = {jour:s.jour, midi:null, soir:null}; jours.push(grp); }
+    let grp = jours.find(j=>j.jourIndex===s.jourIndex);
+    if(!grp){ grp = {jour:joursSemaine[s.jourIndex], jourIndex:s.jourIndex, midi:null, soir:null}; jours.push(grp); }
     const lot = lots.find(l=>l.slots.some(x=>x.id===s.id && !x.phantom));
     grp[s.moment.toLowerCase()] = lot ? { lot, slotInfo: lot.slots.find(x=>x.id===s.id && !x.phantom) } : null;
   });
@@ -1987,7 +2020,7 @@ function renderStep5(){
 
 function renderStep6(){
   const { parRayon, sansQuantite } = genererListe();
-  const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents & légumineuses','Conserves, sauces & condiments','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
+  const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents & légumineuses','Conserves, sauces & condiments','Épices & herbes séchées','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
   let html = `<div class="carnet-wrap">
     ${renderBanniereHistorique()}
     <div class="no-print carnet-topbar">
