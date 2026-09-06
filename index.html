@@ -125,6 +125,12 @@
   .season-badge{display:inline-block;margin-top:8px;margin-right:6px;font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;font-size:10.5px;color:var(--sauge);background:#eef1ea;padding:2px 7px;border-radius:10px;}
   .prix-badge{display:inline-block;margin-top:8px;font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;font-size:10.5px;color:#8a6d2f;background:#faf1de;padding:2px 7px;border-radius:10px;cursor:help;}
   .prix-precaution{font-size:12px;color:#8a8172;background:var(--papier);border:1px solid #E7E1D2;border-radius:var(--radius);padding:10px 14px;margin:0 0 16px;line-height:1.5;}
+  .classement-table{width:100%;border-collapse:collapse;font-size:13px;}
+  .classement-table th{text-align:left;font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;text-transform:uppercase;font-size:10px;letter-spacing:.06em;color:var(--sauge);padding:8px 6px;border-bottom:2px solid #e7e0cd;}
+  .classement-table td{padding:8px 6px;border-bottom:1px solid #ece6d6;}
+  .classement-table td:last-child{text-align:right;font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;white-space:nowrap;}
+  .classement-table a{color:var(--ardoise);text-decoration:underline;text-underline-offset:2px;cursor:pointer;}
+  .classement-table a:hover{color:var(--moutarde);}
   .calendrier{margin-top:10px;background:#fff;border-radius:var(--radius);padding:10px 12px;border:1px solid #e8dfc8;}
   .calendrier-row{font-size:12.5px;padding:3px 0;color:#4a453c;}
   .calendrier-row.prep{font-weight:700;color:var(--ardoise);}
@@ -298,10 +304,14 @@ function alerterAction(message){
   overlay.querySelector('.confirm-ok').addEventListener('click', fermer);
 }
 const VERSION_INFO = {
-  version: '2.8',
+  version: '2.9',
   date: '6 septembre 2026',
   changelog: [
-    { version: '2.8', date: '6 septembre 2026', notes: [
+    { version: '2.9', date: '6 septembre 2026', notes: [
+      "Précision ajoutée au texte d'avertissement sur les prix : le calcul est calibré sur une base de 3,5 portions (la référence de ce corpus), sans remise de volume modélisée — le même texte est repris partout où un prix est affiché.",
+      "Nouveau, dans la consultation du corpus : un classement de toutes les recettes par coût par portion croissant, avec accès direct à chaque fiche en cliquant sur son nom, et retour possible vers ce classement.",
+    ]},
+    { version: '2.8', date: 'précédemment', notes: [
       "Correction majeure de la recette « Conchigliones gratinés, tomate & parmesan » : plusieurs ingrédients des sauces (tomate, oignon, huile, crème, parmesan...) étaient affectés d'un facteur d'erreur x4, révélé par un test en conditions réelles. Corrigé dans le corpus.",
     ]},
     { version: '2.7', date: 'précédemment', notes: [
@@ -587,6 +597,18 @@ function coutEstimePortion(recette){
     if(c != null){ total += c; converts++; }
   });
   return { total: Math.round(total*100)/100, couverture: comptes ? converts/comptes : 0 };
+}
+/* Le calcul (prix au kg/L/pièce × quantité par portion, sommée sur les ingrédients hors "à
+   ajouter soi-même") est par construction déjà indépendant du nombre de portions réellement
+   cuisinées — il n'y a pas de remise de volume modélisée (pas de données fiables sur les tailles
+   de conditionnement ni les remises de gros). La référence de 3,5 portions correspond à la
+   portion familiale standard de ce corpus (voir la documentation du projet) : c'est le volume
+   pour lequel les quantités par portion ont été établies et vérifiées, donc celui où l'hypothèse
+   "prix au kilo" colle le mieux à un achat réel (au-delà, l'achat en plus grande quantité peut
+   coûter moins cher au kilo ; en-deçà, l'obligation d'acheter un conditionnement entier peut
+   coûter plus cher que la seule quantité utilisée). */
+function precautionPrix(){
+  return `💶 Les prix affichés sont des <strong>coûts par portion estimés</strong>, calibrés sur une base de 3,5 portions, à partir de prix moyens de supermarché (mise à jour ${PRIX_INGREDIENTS_INFO.miseAJour}) — pas les tarifs réels d'une enseigne ou d'un magasin en particulier. Ils varient selon la région, la marque et les promotions du moment : à prendre comme repère pour comparer les recettes entre elles, pas comme un budget garanti.`;
 }
 
 function adapterRecette(r){
@@ -896,7 +918,7 @@ let state = {
   profilVientDetreEnregistre: false,
   modeHistorique: null,
   repetitionsForcees: [],
-  consultation: { etape:'portions', portions:4, recetteId:null, filtres:{ vegetarien:null, viandes:[], saisons:[], rythme:null } },
+  consultation: { etape:'portions', portions:4, recetteId:null, depuisClassement:false, filtres:{ vegetarien:null, viandes:[], saisons:[], rythme:null } },
 };
 function assurerDefautsPourSlotsActuels(){
   SLOTS.forEach(s=>{
@@ -1936,7 +1958,7 @@ function renderStep3(){
   if(state.repetitionsForcees && state.repetitionsForcees.length){
     html += `<div class="warn" style="margin-bottom:14px;">⚠ Le corpus ne contenait pas assez de recettes compatibles pour éviter toute répétition cette semaine : <strong>${state.repetitionsForcees.map(r=>`${r.nom} (${r.label})`).join(', ')}</strong> revient plus d'une fois. Pour l'éviter, tu peux assouplir un filtre (Thermomix, par exemple), changer la disponibilité de certains repas, ou enrichir le corpus avec d'autres recettes compatibles.</div>`;
   }
-  html += `<p class="prix-precaution">💶 Les prix affichés sont des <strong>coûts par portion estimés</strong>, à partir de prix moyens de supermarché (mise à jour ${PRIX_INGREDIENTS_INFO.miseAJour}) — pas les tarifs réels d'une enseigne ou d'un magasin en particulier. Ils varient selon la région, la marque et les promotions du moment : à prendre comme repère pour comparer les recettes entre elles, pas comme un budget garanti.</p>`;
+  html += `<p class="prix-precaution">${precautionPrix()}</p>`;
 
   const lots = construirePlanSurMesure();
   const poidsRecents = historiquePoidsRecents();
@@ -2120,6 +2142,7 @@ function renderStep6(){
 
 function renderConsultation(){
   const e = state.consultation.etape;
+  if(e === 'classement') return renderConsultationClassement();
   if(e === 'selection') return renderConsultationSelection();
   if(e === 'fiche') return renderConsultationFiche();
   return renderConsultationPortions();
@@ -2134,6 +2157,7 @@ function renderConsultationPortions(){
   </div>
   <div class="saison-options" style="margin-top:10px;">${[1,2,3.5,4,6,8].map(n=>`<button class="dispo-btn" data-portions-chip="${n}">${n}</button>`).join('')}</div>
   <button class="cta" id="consultToSelection">Continuer →</button>
+  <button class="cta secondary" id="consultOuvrirClassement">📊 Classement des recettes par prix</button>
   <button class="cta secondary" id="consultRetourAccueil">← Retour au menu d'accueil</button>
   </section>`;
 }
@@ -2179,13 +2203,33 @@ function renderConsultationSelection(){
   </section>`;
 }
 
+function renderConsultationClassement(){
+  const classement = CORPUS
+    .map(r => ({ recette: r, coutParPortion: r.coutEstimePortion, tauxCouverture: r.coutCouverture }))
+    .filter(x => x.tauxCouverture >= 0.5)
+    .sort((a,b) => a.coutParPortion - b.coutParPortion);
+  return `<header class="top"><div class="brand-row small"><img src="${LOGO_7_AU_MENU_SMALL}" alt=""><span class="brand-word"><span class="accent">7</span> au Menu <span class="accent">!</span></span></div><div class="eyebrow" style="margin-top:14px;">Consultation du corpus</div><h1 class="simple">Classement des recettes par prix</h1><p class="simple">${classement.length} recette(s), triées par coût par portion croissant.</p></header>
+  <section>
+  <p class="prix-precaution">${precautionPrix()}</p>
+  <table class="classement-table">
+    <thead><tr><th>Recette</th><th>€/portion</th></tr></thead>
+    <tbody>
+      ${classement.map(x=>`<tr>
+        <td><a href="#" data-classement-recette="${x.recette.id}">${x.recette.nom}${x.recette.vegetarien?' 🌱':''}${x.recette.estThermomix?' 🤖':''}${x.recette.estRiche?' 🔥':''}</a></td>
+        <td>${fmtPrix(x.coutParPortion)}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>
+  <button class="cta secondary" id="consultRetourAccueilDepuisClassement" style="margin-top:16px;">← Retour au menu d'accueil</button>
+  </section>`;
+}
 function renderConsultationFiche(){
   const recette = CORPUS.find(r=>r.id===state.consultation.recetteId);
   if(!recette) return renderConsultationSelection();
   const p = state.consultation.portions;
   return `<div class="carnet-wrap">
     <div class="no-print carnet-topbar">
-      <button class="cta secondary" id="consultRetourSelection">← Choisir une autre recette</button>
+      <button class="cta secondary" id="consultRetourSelection">${state.consultation.depuisClassement ? '← Retour au classement des prix' : '← Choisir une autre recette'}</button>
       <button class="cta" id="consultImprimer">🖨️ PDF</button>
     </div>
     <div class="carnet-cover" style="margin-top:20px;">
@@ -2280,6 +2324,20 @@ function attachEvents(){
   });
   const consultToSelection = document.getElementById('consultToSelection');
   if(consultToSelection) consultToSelection.addEventListener('click', ()=>{ state.consultation.etape='selection'; render(); });
+  const consultOuvrirClassement = document.getElementById('consultOuvrirClassement');
+  if(consultOuvrirClassement) consultOuvrirClassement.addEventListener('click', ()=>{ state.consultation.etape='classement'; render(); });
+  document.querySelectorAll('[data-classement-recette]').forEach(a=>{
+    a.addEventListener('click', (e)=>{
+      e.preventDefault();
+      state.consultation.recetteId = a.dataset.classementRecette;
+      state.consultation.portions = 3.5;
+      state.consultation.depuisClassement = true;
+      state.consultation.etape = 'fiche';
+      render();
+    });
+  });
+  const consultRetourAccueilDepuisClassement = document.getElementById('consultRetourAccueilDepuisClassement');
+  if(consultRetourAccueilDepuisClassement) consultRetourAccueilDepuisClassement.addEventListener('click', ()=>{ state.vue = 'planificateur'; render(); });
 
   document.querySelectorAll('[data-consult-vege]').forEach(radio=>{
     radio.addEventListener('change', ()=>{
@@ -2316,11 +2374,11 @@ function attachEvents(){
   const consultSelectRecette = document.getElementById('consultSelectRecette');
   if(consultSelectRecette) consultSelectRecette.addEventListener('change', ()=>{ state.consultation.recetteId = consultSelectRecette.value || null; render(); });
   const consultVoirFiche = document.getElementById('consultVoirFiche');
-  if(consultVoirFiche) consultVoirFiche.addEventListener('click', ()=>{ state.consultation.etape='fiche'; render(); });
+  if(consultVoirFiche) consultVoirFiche.addEventListener('click', ()=>{ state.consultation.depuisClassement = false; state.consultation.etape='fiche'; render(); });
   const consultRetourPortions = document.getElementById('consultRetourPortions');
   if(consultRetourPortions) consultRetourPortions.addEventListener('click', ()=>{ state.consultation.etape='portions'; render(); });
   const consultRetourSelection = document.getElementById('consultRetourSelection');
-  if(consultRetourSelection) consultRetourSelection.addEventListener('click', ()=>{ state.consultation.etape='selection'; render(); });
+  if(consultRetourSelection) consultRetourSelection.addEventListener('click', ()=>{ state.consultation.etape = state.consultation.depuisClassement ? 'classement' : 'selection'; render(); });
   const consultImprimer = document.getElementById('consultImprimer');
   if(consultImprimer) consultImprimer.addEventListener('click', lancerImpression);
   ['consultRetourAccueil','consultRetourAccueil2','consultRetourAccueil3'].forEach(id=>{
@@ -2393,6 +2451,7 @@ function attachEvents(){
     btn.addEventListener('click', ()=>{
       state.consultation.recetteId = btn.dataset.typageFiche;
       if(!state.consultation.portions) state.consultation.portions = 4;
+      state.consultation.depuisClassement = false;
       state.consultation.etape = 'fiche';
       state.vue = 'consultation';
       render();
