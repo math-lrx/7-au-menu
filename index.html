@@ -88,6 +88,9 @@
   .lot-recap-item:first-of-type{border-top:none;}
   .profil-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;}
   .periode-select{background:var(--papier);border:1px solid #E7E1D2;border-radius:var(--radius);padding:14px 16px;margin:14px 0;box-shadow:0 1px 3px rgba(43,38,32,.05);}
+  .achats-select{background:var(--papier);border:1px solid #E7E1D2;border-radius:var(--radius);padding:14px 16px;margin:14px 0;box-shadow:0 1px 3px rgba(43,38,32,.05);}
+  .achats-jours{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+  .achats-jour-check{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--encre);background:#faf7ef;border:1.5px solid #e7e0cd;border-radius:14px;padding:6px 10px;}
   .periode-title{font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--sauge);margin-bottom:10px;}
   .periode-champs{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;}
   .periode-champ label{display:block;font-size:11px;color:#8a8172;margin-bottom:4px;}
@@ -154,6 +157,7 @@
   .item-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--sauge);flex:none;}
   .item-row .name{flex:1;}
   .item-row .name .provenance{display:block;font-size:10.5px;color:#9a9284;font-weight:400;}
+  .item-row .name .repartition-hint{display:block;font-size:10.5px;color:#8a6d2f;font-style:italic;font-weight:400;}
   .item-row.checked .name{text-decoration:line-through;opacity:.45;}
   .item-row .qty{font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;font-size:13px;color:#5b544a;white-space:nowrap;}
   .ticket-total{margin-top:14px;padding-top:12px;border-top:1px dashed #d8cfb8;font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;font-size:11.5px;color:#7a7266;text-align:center;}
@@ -304,10 +308,16 @@ function alerterAction(message){
   overlay.querySelector('.confirm-ok').addEventListener('click', fermer);
 }
 const VERSION_INFO = {
-  version: '2.9',
-  date: '6 septembre 2026',
+  version: '3.1',
+  date: '8 septembre 2026',
   changelog: [
-    { version: '2.9', date: '6 septembre 2026', notes: [
+    { version: '3.1', date: '8 septembre 2026', notes: [
+      "Les PDF du carnet de recettes et de la liste de courses ont désormais des noms de fichier distincts et explicites par défaut (ex. « Carnet de recettes - lundi-midi au dimanche-soir - 2026-09-08 » et « Liste de courses - lundi-midi au dimanche-soir - 2026-09-08 »), au lieu d'être identiques.",
+    ]},
+    { version: '3.0', date: 'précédemment', notes: [
+      "Nouveau : planification des courses en une ou plusieurs fois dans la semaine. Par défaut, rien ne change (une seule liste continue). En choisissant ses jours de courses, chaque repas est rattaché au jour de courses le plus proche qui le précède ; les ingrédients partagés entre plusieurs jours sont regroupés dans l'achat le plus proche, sauf la viande et le poisson frais qui restent séparés pour ne pas être achetés trop à l'avance.",
+    ]},
+    { version: '2.9', date: 'précédemment', notes: [
       "Précision ajoutée au texte d'avertissement sur les prix : le calcul est calibré sur une base de 3,5 portions (la référence de ce corpus), sans remise de volume modélisée — le même texte est repris partout où un prix est affiché.",
       "Nouveau, dans la consultation du corpus : un classement de toutes les recettes par coût par portion croissant, avec accès direct à chaque fiche en cliquant sur son nom, et retour possible vers ce classement.",
     ]},
@@ -409,13 +419,38 @@ function afficherChangelog(){
   overlay.addEventListener('click', (e)=>{ if(e.target === overlay) fermer(); });
   overlay.querySelector('.confirm-ok').addEventListener('click', fermer);
 }
-function lancerImpression(){
+/* Nom de fichier suggéré pour l'enregistrement en PDF : les navigateurs se basent sur le titre
+   de la page au moment de l'impression, pas sur un vrai nom de fichier — on le change donc
+   juste avant d'imprimer, puis on le restaure une fois la boîte de dialogue fermée. */
+function libellePeriodeFichier(){
+  const jd = (state.jourDebut||'').toLowerCase(), jf = (state.jourFin||'').toLowerCase();
+  const md = (state.momentDebut||'').toLowerCase(), mf = (state.momentFin||'').toLowerCase();
+  if(!jd || !jf) return '';
+  return `${jd}-${md} au ${jf}-${mf}`;
+}
+function nomFichierImpression(type){
+  const date = new Date().toISOString().slice(0,10);
+  if(type === 'recette'){
+    const recette = CORPUS.find(r=>r.id===state.consultation.recetteId);
+    return `${recette ? recette.nom : 'Recette'} - ${date}`;
+  }
+  const label = type === 'carnet' ? 'Carnet de recettes' : 'Liste de courses';
+  const periode = libellePeriodeFichier();
+  return `${label} - ${periode ? periode+' - ' : ''}${date}`;
+}
+function lancerImpression(type){
   try{
     if(typeof window.print !== 'function'){
       alerterAction("L'impression n'est pas disponible dans cet aperçu. Ouvre ce fichier directement dans Safari, Chrome ou un autre navigateur complet (pas dans un aperçu rapide ou une pièce jointe) pour imprimer ou enregistrer en PDF.");
       return;
     }
+    const titreOriginal = document.title;
+    document.title = nomFichierImpression(type);
+    const restaurer = () => { document.title = titreOriginal; window.removeEventListener('afterprint', restaurer); };
+    window.addEventListener('afterprint', restaurer);
     window.print();
+    // Filet de sécurité pour les environnements où 'afterprint' ne se déclenche pas.
+    setTimeout(restaurer, 3000);
   } catch(e){
     alerterAction("L'impression a échoué dans cet environnement. Ouvre ce fichier directement dans un navigateur (Safari, Chrome…) pour imprimer ou enregistrer en PDF.");
   }
@@ -917,6 +952,7 @@ let state = {
   profilChargeAuDepart: false,
   profilVientDetreEnregistre: false,
   modeHistorique: null,
+  achats: { actif: false, jours: {} },
   repetitionsForcees: [],
   consultation: { etape:'portions', portions:4, recetteId:null, depuisClassement:false, filtres:{ vegetarien:null, viandes:[], saisons:[], rythme:null } },
 };
@@ -1354,6 +1390,42 @@ function classifierRayon(nom){
   }
   return { rayon:'Épicerie', motCle: sansAccents(n) };
 }
+/* Viande et poisson frais : sert uniquement à décider, dans le module de courses en plusieurs
+   périodes, quels ingrédients ne doivent jamais être fusionnés dans une période antérieure (pour
+   ne pas inciter à les acheter trop tôt). Volontairement plus restrictif que le rayon "Boucherie,
+   volaille & poissonnerie" dans son ensemble : la charcuterie/salaison (jambon, lard, chorizo,
+   saucisse...) se conserve bien plus longtemps et n'a pas cette contrainte, donc n'y figure pas.
+   Le surgelé est déjà exclu par construction : il relève du rayon "Surgelés", jamais de celui-ci. */
+const MOTS_VIANDE_POISSON_FRAIS = ['poulet','volaille','bœuf','boeuf','porc','viande','canard','poularde','thon','saumon','poisson','crevette','morue','cabillaud'].map(normaliserPourComparaison);
+function estViandeOuPoissonFrais(nom){
+  const { rayon, motCle } = classifierRayon(nom);
+  if(rayon !== 'Boucherie, volaille & poissonnerie') return false;
+  return MOTS_VIANDE_POISSON_FRAIS.includes(normaliserPourComparaison(motCle));
+}
+/* Affecte chaque lot au jour de courses le plus proche qui le précède, cycliquement (un lot
+   prévu avant le tout premier jour de courses de la semaine se rattache au dernier jour de
+   courses — celui de la semaine précédente, dans une logique de routine hebdomadaire récurrente). */
+function calculerAffectationPeriodes(){
+  if(!state.achats.actif) return { actif:false };
+  const parJourIndex = {};
+  SLOTS.forEach(s=>{ if(parJourIndex[s.jourIndex] === undefined) parJourIndex[s.jourIndex] = s; });
+  const positions = Object.values(parJourIndex)
+    .filter(s => state.achats.jours[s.jourIndex])
+    .sort((a,b)=>a.jourIndex-b.jourIndex)
+    .map(s => ({ jourIndex:s.jourIndex, jour:s.jour, position:s.position }));
+  if(!positions.length) return { actif:false };
+  return {
+    actif: true,
+    nb: positions.length,
+    periodeDe(sel){
+      const posCle = sel.lot.slots[0].position;
+      let idx = -1;
+      for(let i=0;i<positions.length;i++){ if(positions[i].position <= posCle) idx = i; }
+      return idx === -1 ? positions.length - 1 : idx;
+    },
+    labelDe(i){ return `Courses avant le ${positions[i].jour.toLowerCase()}`; },
+  };
+}
 const VIANDE_MOTS = [
   ['Bœuf', ['bœuf','boeuf']],
   ['Porc', ['porc','jambon','lard']],
@@ -1422,10 +1494,17 @@ function nomAffichage(nom){
   return nom.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
 }
 function genererListe(){
-  const totaux = {}; const provenance = {}; const sansQuantite = new Set();
+  const periodes = calculerAffectationPeriodes();
+  const nbPeriodes = periodes.actif ? periodes.nb : 1;
+  const totauxParPeriode = Array.from({length: nbPeriodes}, () => ({}));
+  const provenanceParPeriode = Array.from({length: nbPeriodes}, () => ({}));
+  const sansQuantite = new Set();
   selectionsActuelles().forEach(sel=>{
     if(!sel.recipeId) return;
     const recette = CORPUS.find(r=>r.id===sel.recipeId);
+    const idxPeriode = periodes.actif ? periodes.periodeDe(sel) : 0;
+    const totaux = totauxParPeriode[idxPeriode];
+    const provenance = provenanceParPeriode[idxPeriode];
     recette.ingredients.forEach(ing=>{
       const nomBrut = ing.nom.normalize('NFC');
       const nomClair = nomAffichage(nomBrut);
@@ -1434,26 +1513,74 @@ function genererListe(){
       const key = nomClair.toLowerCase() + '|' + u;
       if(!totaux[key]) {
         const classement = ing.base ? { rayon:'Condiments & basiques', motCle: sansAccents(nomClair.toLowerCase()) } : classifierRayon(nomBrut);
-        totaux[key] = { nom: nomClair, unite:u, qte:0, rayon: classement.rayon, motCle: classement.motCle };
+        totaux[key] = { nom: nomClair, unite:u, qte:0, rayon: classement.rayon, motCle: classement.motCle, frais: !ing.base && estViandeOuPoissonFrais(nomBrut) };
         provenance[key] = new Set();
       }
       totaux[key].qte += ing.qte * facteurEchelle(sel.portions, ing.nom);
       provenance[key].add(`${sel.label} · ${recette.nom}`);
     });
   });
-  const parRayon = {};
-  Object.entries(totaux).forEach(([key,item])=>{
-    item.qte = arrondir(item.qte, item.unite);
-    if(item.qte === 0) return;
-    item.provenance = Array.from(provenance[key]);
-    if(!parRayon[item.rayon]) parRayon[item.rayon] = [];
-    parRayon[item.rayon].push(item);
+  if(periodes.actif && nbPeriodes > 1){
+    fusionnerOuScinderEntrePeriodes(totauxParPeriode, provenanceParPeriode);
+  }
+  const parRayonParPeriode = totauxParPeriode.map((totaux, idxPeriode)=>{
+    const parRayon = {};
+    Object.entries(totaux).forEach(([key,item])=>{
+      item.qte = arrondir(item.qte, item.unite);
+      if(item.qte === 0) return;
+      item.provenance = Array.from(provenanceParPeriode[idxPeriode][key] || []);
+      if(!parRayon[item.rayon]) parRayon[item.rayon] = [];
+      parRayon[item.rayon].push(item);
+    });
+    consoliderDoublonsExacts(parRayon);
+    Object.values(parRayon).forEach(items=>{
+      items.sort((a,b)=> a.motCle.localeCompare(b.motCle) || a.nom.localeCompare(b.nom));
+    });
+    return parRayon;
   });
-  consoliderDoublonsExacts(parRayon);
-  Object.values(parRayon).forEach(items=>{
-    items.sort((a,b)=> a.motCle.localeCompare(b.motCle) || a.nom.localeCompare(b.nom));
+  if(!periodes.actif){
+    return { parRayon: parRayonParPeriode[0], sansQuantite: Array.from(sansQuantite).sort(), periodes: null };
+  }
+  return {
+    parRayon: parRayonParPeriode[0],
+    sansQuantite: Array.from(sansQuantite).sort(),
+    periodes: parRayonParPeriode.map((parRayon, i)=>({ label: periodes.labelDe(i), parRayon })),
+  };
+}
+/* Fusionne ou scinde les ingrédients partagés entre plusieurs périodes d'achat :
+   - non-frais (féculents, épicerie, produits laitiers, charcuterie, surgelés...) : fusionnés
+     dans la période la plus ancienne (celle avec l'index le plus faible), avec le détail de la
+     répartition d'origine conservé pour suggérer un éventuel fractionnement de l'achat.
+   - viande et poisson frais (hors charcuterie/salaison et surgelés) : jamais fusionnés — chaque
+     période garde sa propre ligne avec sa propre quantité, pour ne pas inciter à acheter ces
+     produits périssables trop tôt.
+   Le classement en rayon de chaque ingrédient a déjà été calculé une seule fois, indépendamment
+   de la période, au moment de la construction des totaux : cette passe ne fait que déplacer ou
+   additionner des quantités déjà classées, jamais reclassifier quoi que ce soit. */
+function fusionnerOuScinderEntrePeriodes(totauxParPeriode, provenanceParPeriode){
+  const toutesCles = new Set();
+  totauxParPeriode.forEach(t => Object.keys(t).forEach(k => toutesCles.add(k)));
+  toutesCles.forEach(cle=>{
+    const occurrences = [];
+    totauxParPeriode.forEach((t, idx) => { if(t[cle]) occurrences.push({ idx, item: t[cle] }); });
+    if(occurrences.length < 2) return;
+    if(occurrences[0].item.frais) return; // scission : chaque période garde déjà sa propre ligne
+    const idxCible = Math.min(...occurrences.map(o=>o.idx));
+    const cible = totauxParPeriode[idxCible][cle];
+    const repartitionOrigine = occurrences.map(o=>({ idx:o.idx, qte:o.item.qte }));
+    occurrences.forEach(o=>{
+      if(o.idx === idxCible) return;
+      cible.qte += o.item.qte;
+      const provOrigine = provenanceParPeriode[o.idx][cle];
+      if(provOrigine){
+        if(!provenanceParPeriode[idxCible][cle]) provenanceParPeriode[idxCible][cle] = new Set();
+        provOrigine.forEach(p => provenanceParPeriode[idxCible][cle].add(p));
+      }
+      delete totauxParPeriode[o.idx][cle];
+      delete provenanceParPeriode[o.idx][cle];
+    });
+    cible.repartitionOrigine = repartitionOrigine;
   });
-  return { parRayon, sansQuantite: Array.from(sansQuantite).sort() };
 }
 /* Filet de sécurité : un même nom d'ingrédient (mot pour mot identique) ne doit jamais apparaître
    dans deux rubriques différentes — quelle qu'en soit la cause (unités différentes selon les
@@ -1798,6 +1925,7 @@ function renderStep1(){
     html += `<div class="profil-note">✅ Profil-type enregistré. Il sera proposé automatiquement au prochain accès à cet écran, et vous pourrez toujours le modifier.</div>`;
   }
   html += renderGrilleCustom();
+  html += renderSelecteurAchats();
   html += renderRecapLots();
   const auMoinsUnRepas = SLOTS.some(s=>!state.custom[s.id].retire);
   html += `<button class="cta" id="toStep2" ${auMoinsUnRepas?'':'disabled'}>Continuer →</button>`;
@@ -1825,6 +1953,26 @@ const DISPO_LABELS = {
   reconso:     { court:'Réchauffage / repas froid', duree:'5 min ou moins', aide:'Vous consommez un reste déjà préparé, sans (ou presque) recuisiner.' },
 };
 
+function renderSelecteurAchats(){
+  const joursSemaine = joursDeLaSemaineChoisie();
+  const joursBruts = joursBrutsParIndex();
+  const nbJoursCoches = Object.values(state.achats.jours).filter(Boolean).length;
+  return `<div class="achats-select">
+    <div class="periode-title">Vos courses en une ou plusieurs fois ?</div>
+    <div class="saison-options">
+      <label><input type="radio" name="achatsMode" data-achats-mode="non" ${!state.achats.actif?'checked':''}> Je ne sais pas encore quand je ferai mes courses</label>
+      <label><input type="radio" name="achatsMode" data-achats-mode="oui" ${state.achats.actif?'checked':''}> Je choisis mes jours de courses</label>
+    </div>
+    ${state.achats.actif ? `
+      <p class="periode-note" style="margin-top:8px;">Chaque repas est rattaché au jour de courses le plus proche qui le précède. La viande et le poisson frais ne sont jamais achetés trop à l'avance : ils restent séparés dans chaque période concernée plutôt que d'être regroupés avec le reste.</p>
+      <div class="achats-jours">
+        ${joursBruts.map((jour, idx) => `<label class="achats-jour-check"><input type="checkbox" data-achats-jour="${idx}" ${state.achats.jours[idx]?'checked':''}> ${joursSemaine[idx]}</label>`).join('')}
+      </div>
+      <button class="cta secondary" id="achatsSuggererRepartition" style="margin-top:10px;">🔮 Suggérer une répartition</button>
+      ${nbJoursCoches ? `<p class="periode-note">${nbJoursCoches} jour${nbJoursCoches>1?'s':''} de courses sélectionné${nbJoursCoches>1?'s':''}.</p>` : `<p class="periode-note">Cochez au moins un jour, ou utilisez le bouton de suggestion ci-dessus.</p>`}
+    ` : ''}
+  </div>`;
+}
 function renderGrilleCustom(){
   const joursSemaine = joursDeLaSemaineChoisie();
   const jours = [];
@@ -1997,30 +2145,66 @@ function renderStep3(){
   return html;
 }
 
-function renderStep4(){
-  const { parRayon, sansQuantite } = genererListe();
-  const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents & légumineuses','Conserves, sauces & condiments','Épices & herbes séchées','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
-  let html = `<div class="ticket-wrap"><section style="padding-top:8px;"><h2>4. Liste de courses</h2>
-  <p class="sub">Coche au fur et à mesure. Les variantes d'un même ingrédient (ex. « bœuf haché » et « viande de bœuf hachée ») sont regroupées côte à côte pour faciliter le repérage, mais restent des lignes séparées.</p></section>
-  <div class="ticket"><h3>Courses — semaine prochaine</h3><div class="meta">Semaine sur-mesure</div>`;
+/* Rendu partagé d'un ensemble de rayons (utilisé une fois pour la liste classique, une fois par
+   période quand les courses en plusieurs temps sont actives) — les clés de case à cocher sont
+   préfixées par la période pour que cocher un article dans une période ne coche pas par erreur
+   la même ligne dans une autre (cas des viandes/poissons frais scindés entre deux périodes). */
+function renderTicketRayons(parRayon, ordreRayons, prefixePeriode){
+  let html = '';
   ordreRayons.forEach(rayon=>{
     const items = parRayon[rayon];
     if(!items || !items.length) return;
     html += `<div class="rayon"><div class="rayon-title">${rayon}</div>`;
     items.forEach(item=>{
-      const itemKey = item.nom+'|'+item.unite;
+      const itemKey = (prefixePeriode!=null ? prefixePeriode+'|' : '') + item.nom+'|'+item.unite;
       const checked = state.cochees.has(itemKey);
+      const hint = item.repartitionOrigine && item.repartitionOrigine.length > 1
+        ? `<span class="repartition-hint">Achat groupé pour plusieurs jours : ${item.repartitionOrigine.map(r=>fmtQte(r.qte, item.unite)).join(' + ')}</span>` : '';
       html += `<label class="item-row ${checked?'checked':''}">
         <input type="checkbox" data-item="${itemKey}" ${checked?'checked':''}>
-        <span class="name">${item.nom}<span class="provenance">${item.provenance.join(' + ')}</span></span>
+        <span class="name">${item.nom}<span class="provenance">${item.provenance.join(' + ')}</span>${hint}</span>
         <span class="qty">${fmtQte(item.qte, item.unite)}</span></label>`;
     });
     html += `</div>`;
   });
-  if(sansQuantite.length){ html += `<div class="rayon"><div class="rayon-title">Selon goût</div><div class="selon-gout">${sansQuantite.join(' · ')}</div></div>`; }
-  const totalArticles = Object.values(parRayon).flat().length;
-  html += `<div class="ticket-total">${totalArticles} articles</div></div>
-  <button class="cta" id="toStep5" style="margin-top:16px;">Générer le carnet de recettes →</button>
+  return html;
+}
+function renderCarnetRayons(parRayon, ordreRayons){
+  let html = '';
+  ordreRayons.forEach(rayon=>{
+    const items = parRayon[rayon];
+    if(!items || !items.length) return;
+    html += `<div class="carnet-section-title" style="margin-top:20px;">${rayon}</div>`;
+    items.forEach(item=>{
+      const hint = item.repartitionOrigine && item.repartitionOrigine.length > 1
+        ? `<span style="display:block;font-size:10px;color:#9a9284;">Achat groupé pour plusieurs jours : ${item.repartitionOrigine.map(r=>fmtQte(r.qte, item.unite)).join(' + ')}</span>` : '';
+      html += `<div class="carnet-ing-row"><span>☐ ${item.nom}<span style="display:block;font-size:10px;color:#9a9284;">${item.provenance.join(' + ')}</span>${hint}</span><span class="q">${fmtQte(item.qte, item.unite)}</span></div>`;
+    });
+  });
+  return html;
+}
+function renderStep4(){
+  const { parRayon, sansQuantite, periodes } = genererListe();
+  const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents & légumineuses','Conserves, sauces & condiments','Épices & herbes séchées','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
+  let html = `<div class="ticket-wrap"><section style="padding-top:8px;"><h2>4. Liste de courses</h2>
+  <p class="sub">Coche au fur et à mesure. Les variantes d'un même ingrédient (ex. « bœuf haché » et « viande de bœuf hachée ») sont regroupées côte à côte pour faciliter le repérage, mais restent des lignes séparées.</p></section>`;
+  if(periodes){
+    periodes.forEach((p, idx)=>{
+      const totalArticles = Object.values(p.parRayon).flat().length;
+      if(!totalArticles) return;
+      html += `<div class="ticket"><h3>${p.label}</h3><div class="meta">Semaine sur-mesure</div>`;
+      html += renderTicketRayons(p.parRayon, ordreRayons, idx);
+      html += `<div class="ticket-total">${totalArticles} articles</div></div>`;
+    });
+    if(sansQuantite.length){ html += `<div class="ticket"><div class="rayon"><div class="rayon-title">Selon goût (toutes périodes)</div><div class="selon-gout">${sansQuantite.join(' · ')}</div></div></div>`; }
+  } else {
+    html += `<div class="ticket"><h3>Courses — semaine prochaine</h3><div class="meta">Semaine sur-mesure</div>`;
+    html += renderTicketRayons(parRayon, ordreRayons, null);
+    if(sansQuantite.length){ html += `<div class="rayon"><div class="rayon-title">Selon goût</div><div class="selon-gout">${sansQuantite.join(' · ')}</div></div>`; }
+    const totalArticles = Object.values(parRayon).flat().length;
+    html += `<div class="ticket-total">${totalArticles} articles</div></div>`;
+  }
+  html += `<button class="cta" id="toStep5" style="margin-top:16px;">Générer le carnet de recettes →</button>
   <button class="cta secondary" id="toStep6">🖨️ PDF de la liste de courses seule</button>
   <button class="cta secondary" id="backTo3">← Revoir les recettes</button></div>`;
   return html;
@@ -2113,7 +2297,7 @@ function renderStep5(){
 }
 
 function renderStep6(){
-  const { parRayon, sansQuantite } = genererListe();
+  const { parRayon, sansQuantite, periodes } = genererListe();
   const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents & légumineuses','Conserves, sauces & condiments','Épices & herbes séchées','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
   let html = `<div class="carnet-wrap">
     ${renderBanniereHistorique()}
@@ -2125,18 +2309,23 @@ function renderStep6(){
       <div class="carnet-cover-text"><div class="eyebrow">Carnet de la semaine</div><h2>Liste de courses</h2>
       <p>Semaine sur-mesure</p></div>
     </div>
-    <div class="carnet-page"><div class="carnet-section-title" style="margin-top:0;">Emploi du temps de la semaine</div>${renderEmploiDuTemps()}</div>
-    <div class="carnet-page">`;
-  ordreRayons.forEach(rayon=>{
-    const items = parRayon[rayon];
-    if(!items || !items.length) return;
-    html += `<div class="carnet-section-title" style="margin-top:20px;">${rayon}</div>`;
-    items.forEach(item=>{
-      html += `<div class="carnet-ing-row"><span>☐ ${item.nom}<span style="display:block;font-size:10px;color:#9a9284;">${item.provenance.join(' + ')}</span></span><span class="q">${fmtQte(item.qte, item.unite)}</span></div>`;
+    <div class="carnet-page"><div class="carnet-section-title" style="margin-top:0;">Emploi du temps de la semaine</div>${renderEmploiDuTemps()}</div>`;
+  if(periodes){
+    periodes.forEach(p=>{
+      const totalArticles = Object.values(p.parRayon).flat().length;
+      if(!totalArticles) return;
+      html += `<div class="carnet-page"><div class="carnet-section-title" style="margin-top:0;">${p.label}</div>`;
+      html += renderCarnetRayons(p.parRayon, ordreRayons);
+      html += `</div>`;
     });
-  });
-  if(sansQuantite.length){ html += `<div class="carnet-section-title">Selon goût</div><div class="selon-gout">${sansQuantite.join(' · ')}</div>`; }
-  html += `</div></div>`;
+    if(sansQuantite.length){ html += `<div class="carnet-page"><div class="carnet-section-title" style="margin-top:0;">Selon goût (toutes périodes)</div><div class="selon-gout">${sansQuantite.join(' · ')}</div></div>`; }
+  } else {
+    html += `<div class="carnet-page">`;
+    html += renderCarnetRayons(parRayon, ordreRayons);
+    if(sansQuantite.length){ html += `<div class="carnet-section-title">Selon goût</div><div class="selon-gout">${sansQuantite.join(' · ')}</div>`; }
+    html += `</div>`;
+  }
+  html += `</div>`;
   return html;
 }
 
@@ -2307,7 +2496,7 @@ function importerDonnees(texteFichier){
 function reinitialiserPourNouvelleSemaine(){
   state.vue = 'planificateur';
   state.step = 1; state.mode = 'custom'; state.selectionMode = null;
-  state.choixLots = {}; state.custom = {}; state.dispo = {}; state.rapideReconso = {}; state.multiPrep = {}; state.repetitionsForcees = [];
+  state.choixLots = {}; state.custom = {}; state.dispo = {}; state.rapideReconso = {}; state.multiPrep = {}; state.repetitionsForcees = []; state.achats = { actif:false, jours:{} };
   state.cochees = new Set(); state.sessionId = nouvelIdSemaine();
   state.profilChargeAuDepart = false; state.profilVientDetreEnregistre = false; state.modeHistorique = null;
   state.consultation.etape = 'portions'; state.consultation.recetteId = null;
@@ -2380,7 +2569,7 @@ function attachEvents(){
   const consultRetourSelection = document.getElementById('consultRetourSelection');
   if(consultRetourSelection) consultRetourSelection.addEventListener('click', ()=>{ state.consultation.etape = state.consultation.depuisClassement ? 'classement' : 'selection'; render(); });
   const consultImprimer = document.getElementById('consultImprimer');
-  if(consultImprimer) consultImprimer.addEventListener('click', lancerImpression);
+  if(consultImprimer) consultImprimer.addEventListener('click', ()=>lancerImpression('recette'));
   ['consultRetourAccueil','consultRetourAccueil2','consultRetourAccueil3'].forEach(id=>{
     const btn = document.getElementById(id);
     if(btn) btn.addEventListener('click', ()=>{ state.vue='planificateur'; state.step=1; state.corpusPanelOuvert = false; render(); });
@@ -2509,9 +2698,23 @@ function attachEvents(){
       state.momentFin = document.getElementById('momentFinSelect').value;
       regenererSlots();
       state.choixLots = {};
+      state.achats.jours = {};
       state.profilVientDetreEnregistre = false;
       render();
     });
+  });
+  document.querySelectorAll('[data-achats-mode]').forEach(r=>{
+    r.addEventListener('change', ()=>{ state.achats.actif = r.dataset.achatsMode === 'oui'; render(); });
+  });
+  document.querySelectorAll('[data-achats-jour]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{ state.achats.jours[parseInt(cb.dataset.achatsJour,10)] = cb.checked; render(); });
+  });
+  const achatsSuggererRepartition = document.getElementById('achatsSuggererRepartition');
+  if(achatsSuggererRepartition) achatsSuggererRepartition.addEventListener('click', ()=>{
+    const suggestion = {};
+    SLOTS.forEach(s=>{ if(state.dispo[s.id] === 'confortable') suggestion[s.jourIndex] = true; });
+    state.achats.jours = suggestion;
+    render();
   });
   const sauvegarderProfilBtn = document.getElementById('sauvegarderProfil');
   if(sauvegarderProfilBtn) sauvegarderProfilBtn.addEventListener('click', ()=>{ sauvegarderProfilType(); render(); });
@@ -2602,9 +2805,9 @@ function attachEvents(){
   const backTo4depuis6 = document.getElementById('backTo4depuis6');
   if(backTo4depuis6) backTo4depuis6.addEventListener('click', ()=>{ state.step=4; render(); });
   const imprimerCarnet = document.getElementById('imprimerCarnet');
-  if(imprimerCarnet) imprimerCarnet.addEventListener('click', lancerImpression);
+  if(imprimerCarnet) imprimerCarnet.addEventListener('click', ()=>lancerImpression('carnet'));
   const imprimerCourses = document.getElementById('imprimerCourses');
-  if(imprimerCourses) imprimerCourses.addEventListener('click', lancerImpression);
+  if(imprimerCourses) imprimerCourses.addEventListener('click', ()=>lancerImpression('liste'));
   const semaineSuivante = document.getElementById('semaineSuivante');
   if(semaineSuivante) semaineSuivante.addEventListener('click', ()=>{
     reinitialiserPourNouvelleSemaine();
