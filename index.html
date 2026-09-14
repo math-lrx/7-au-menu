@@ -190,8 +190,8 @@
   .carnet-ing-row{font-size:14px;padding:4px 0;break-inside:avoid;display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted #ece5d2;}
   .carnet-ing-row .q{font-family:ui-monospace, 'SF Mono', 'Cascadia Code', 'Roboto Mono', Menlo, Consolas, monospace;color:#6b6456;white-space:nowrap;}
   .carnet-etapes{counter-reset:etape;}
-  .carnet-etape{counter-increment:etape;display:flex;gap:12px;margin-bottom:6px;font-size:15px;line-height:1.5;color:var(--encre);}
-  .carnet-etape::before{content:counter(etape);font-family:Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;font-weight:700;font-size:16px;color:#fff;background:var(--moutarde);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;}
+  .carnet-etape{counter-increment:etape;position:relative;padding-left:38px;margin-bottom:10px;font-size:15px;line-height:1.5;color:var(--encre);}
+  .carnet-etape::before{content:counter(etape);position:absolute;left:0;top:0;font-family:Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', serif;font-weight:700;font-size:16px;color:#fff;background:var(--moutarde);width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;}
   .carnet-etape-titre{font-weight:700;display:block;margin-bottom:2px;}
   .carnet-astuce{font-size:12.5px;color:#7a7266;font-style:italic;margin:0 0 14px 38px;}
   .carnet-allergenes{font-size:10.5px;color:#a89f8c;margin-top:20px;border-top:1px dashed #e7e0cd;padding-top:10px;}
@@ -308,10 +308,16 @@ function alerterAction(message){
   overlay.querySelector('.confirm-ok').addEventListener('click', fermer);
 }
 const VERSION_INFO = {
-  version: '3.1',
-  date: '8 septembre 2026',
+  version: '3.3',
+  date: '14 septembre 2026',
   changelog: [
-    { version: '3.1', date: '8 septembre 2026', notes: [
+    { version: '3.3', date: '14 septembre 2026', notes: [
+      "Correction d'un bug d'impression : certaines étapes de préparation, quand leur texte était long, pouvaient être coupées avant la fin dans le PDF du carnet de recettes plutôt que de continuer sur la page suivante. La mise en page de chaque étape a été revue pour ne plus jamais tronquer le texte à l'impression.",
+    ]},
+    { version: '3.2', date: 'précédemment', notes: [
+      "Le mode d'emploi \"Ajouter une recette avec l'aide d'une IA\" intègre désormais une méthode de calcul pour estimer un temps de préparation réaliste (au lieu de recopier tel quel un temps souvent optimiste de la source d'origine), avec un exemple chiffré.",
+    ]},
+    { version: '3.1', date: 'précédemment', notes: [
       "Les PDF du carnet de recettes et de la liste de courses ont désormais des noms de fichier distincts et explicites par défaut (ex. « Carnet de recettes - lundi-midi au dimanche-soir - 2026-09-08 » et « Liste de courses - lundi-midi au dimanche-soir - 2026-09-08 »), au lieu d'être identiques.",
     ]},
     { version: '3.0', date: 'précédemment', notes: [
@@ -1807,8 +1813,18 @@ function renderGuideCorpus(){
 - "unite" : g, ml, cl, L, cs (cuillère à soupe), cc (cuillère à café), ou "pièce(s)" pour les ingrédients à l'unité.
 - Pour un ingrédient déjà présent dans toutes les cuisines (sel, poivre, huile...), ajoute "categorie": "à ajouter soi-même" et laisse "quantite_par_portion": null si la quantité n'a pas d'importance.
 - "placeholder" : uniquement si tu veux que la quantité de cet ingrédient s'affiche automatiquement dans le texte d'une étape via {placeholder} — sinon, tu peux l'omettre.
-- "classification_conservation_reconsommation" : décris si la recette nécessite un moment "confortable" pour être cuisinée (true) ou si elle est rapide (false), si elle se mange bien réchauffée ou froide plus tard (compatible_rechauffage_simple_ou_froid), et si un petit geste frais est nécessaire à chaque service (compatible_rechauffage_complement_rapide, avec sa description).
+- "classification_conservation_reconsommation" : décris si la recette nécessite un moment "confortable" pour être cuisinée (true) ou si elle est rapide (false), si elle se mange bien réchauffée ou froide plus tard (compatible_rechauffage_simple_ou_froid), et si un petit geste frais est nécessaire à chaque service (compatible_rechauffage_complement_rapide, avec sa description).\n- "temps.preparation_min" : ne recopie jamais telle quelle une durée trouvée dans la source d'origine (souvent optimiste, pensée pour quelqu'un déjà à l'aise en cuisine) et n'improvise pas non plus un chiffre "au feeling". Calcule plutôt cette durée à partir du texte des étapes que tu viens de rédiger, pour quelqu'un de non aguerri, avec la méthode suivante :
+  1. Pars d'un socle fixe de 5 minutes.
+  2. Ajoute, pour chaque geste de découpe mentionné (compte chaque occurrence séparément, sur l'ensemble des étapes) : émincer/ciseler finement = 3 min ; couper/tailler/hacher/trancher = 2 min ; éplucher/peler = 1,5 min ; zester/effeuiller = 1 min.
+  3. Ajoute 0,3 min pour chaque ingrédient actif dont la préparation n'est pas déjà comptée par un geste ci-dessus (ignore le sel/poivre et les ingrédients \"à ajouter soi-même\").
+  4. Les temps suivants sont calibrés pour une quantité correspondant à un repas familial standard (environ 3-4 portions) : façonner à la main (boulettes, galettes, nuggets, falafels) = 9 min ; panure à trois bains farine/œuf/chapelure = 7 min ; vrai pétrissage de pâte (pain, brioche, naan — pas une pâte brisée sablée au robot) = 15 min ; sabler à la main une pâte brisée maison (frotter le beurre froid dans la farine, sans machine) = 6 min ; farcir/garnir de façon répétitive (remplir des pâtes à farcir, des légumes évidés, rouler des tortillas, foncer une tourte en plusieurs couches) = 8 min. Si la recette que tu rédiges est plutôt pensée pour être cuisinée en une seule fois en quantité plus importante que ce repas standard, pour être reconsommée sur plusieurs repas dans la semaine (plutôt qu'un repas rapide mangé le jour même), double ces temps-là pour refléter le geste répété sur un volume plus grand.
+  5. Ajoute 7 min si une sauce, un pesto ou une soupe est monté(e)/mixé(e) au robot, au mixeur ou au blender (pas si l'appareil sert juste à hacher grossièrement des aromates, ni pour une sauce montée à la main comme une béchamel ou une émulsion au fouet).
+  6. Ajoute 1,5 min pour chaque sous-préparation que tu ajoutes toi-même à la recette d'origine et qui correspond à un vrai geste de cuisine (pas une simple précision de quantité ou une substitution d'ingrédient).
+  7. Si plusieurs de ces sous-préparations se déroulent en parallèle (par exemple un accompagnement au four pendant que le plat principal mijote), augmente le total obtenu de 10 à 20%.
+  Cette méthode donne une estimation raisonnable à partir de mots-clés du texte, pas une mesure chronométrée réelle : indique le résultat obtenu par le calcul, sans l'ajuster arbitrairement à la baisse.
 - Réponds uniquement avec l'objet JSON final, sans texte autour, prêt à être enregistré directement comme fichier .json.</div>
+
+      <p style="font-size:13px;color:#8a8172;margin:10px 0 0;line-height:1.6;"><strong>Pourquoi recalculer ce temps plutôt que garder celui de la source ?</strong> Beaucoup de recettes (livres de cuisine, sites internet) annoncent un temps de préparation optimiste, pensé pour quelqu'un qui a déjà les gestes en main. Ce calcul par mots-clés donne une estimation plus réaliste pour un cuisinier non aguerri. Exemple concret : une recette qui dit « émincez l'oignon, épluchez et coupez les carottes en dés, ciselez l'ail » avec 6 autres ingrédients à préparer donne 5 (socle) + 3 (émincer) + 1,5 (éplucher) + 2 (couper) + 3 (ciseler) + 6×0,3 (ingrédients restants) = <strong>16,3 minutes</strong>, arrondies à 16 ou 17 minutes — plutôt que les 10 minutes parfois annoncées par la source.</p>
 
       <div class="carnet-section-title">Étape 4 — Ajouter la fiche dans l'outil</div>
       <p style="font-size:14px;line-height:1.6;">Copie la réponse de l'IA (l'objet JSON), colle-la dans un éditeur de texte simple (Bloc-notes, TextEdit...), et enregistre le fichier avec l'extension <strong>.json</strong>. Retourne ensuite sur l'écran d'accueil de cet outil, ouvre "Gérer le corpus", et dépose ce fichier dans la zone d'import. C'est tout — ta recette rejoint le corpus, sans jamais écraser les autres.</p>
