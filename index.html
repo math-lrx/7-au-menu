@@ -308,10 +308,14 @@ function alerterAction(message){
   overlay.querySelector('.confirm-ok').addEventListener('click', fermer);
 }
 const VERSION_INFO = {
-  version: '3.3',
+  version: '3.4',
   date: '14 septembre 2026',
   changelog: [
-    { version: '3.3', date: '14 septembre 2026', notes: [
+    { version: '3.4', date: '14 septembre 2026', notes: [
+      "Vérification de sécurité : confirmé qu'aucun mécanisme de cette appli ne convertit automatiquement un repas \"réchauffage/froid\" sans préparation antérieure en repas de cuisine — un tel repas reste toujours signalé comme conflit, jamais résolu silencieusement.",
+      "L'avertissement de repas sans solution est désormais visible à chaque étape (configuration, choix des recettes, liste de courses, carnet de recettes et PDF) — il n'apparaissait auparavant pas sur l'écran de la liste de courses.",
+    ]},
+    { version: '3.3', date: 'précédemment', notes: [
       "Correction d'un bug d'impression : certaines étapes de préparation, quand leur texte était long, pouvaient être coupées avant la fin dans le PDF du carnet de recettes plutôt que de continuer sur la page suivante. La mise en page de chaque étape a été revue pour ne plus jamais tronquer le texte à l'impression.",
     ]},
     { version: '3.2', date: 'précédemment', notes: [
@@ -2201,9 +2205,12 @@ function renderCarnetRayons(parRayon, ordreRayons){
 }
 function renderStep4(){
   const { parRayon, sansQuantite, periodes } = genererListe();
+  const orphelines = construirePlanSurMesure().filter(l=>l.orpheline);
   const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents & légumineuses','Conserves, sauces & condiments','Épices & herbes séchées','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
   let html = `<div class="ticket-wrap"><section style="padding-top:8px;"><h2>4. Liste de courses</h2>
-  <p class="sub">Coche au fur et à mesure. Les variantes d'un même ingrédient (ex. « bœuf haché » et « viande de bœuf hachée ») sont regroupées côte à côte pour faciliter le repérage, mais restent des lignes séparées.</p></section>`;
+  <p class="sub">Coche au fur et à mesure. Les variantes d'un même ingrédient (ex. « bœuf haché » et « viande de bœuf hachée ») sont regroupées côte à côte pour faciliter le repérage, mais restent des lignes séparées.</p>
+  ${orphelines.length ? `<div class="warn" style="margin-top:8px;">⚠ ${orphelines.length} repas marqué(s) « réchauffage / repas froid » sans aucune préparation avant eux cette semaine : ${orphelines.map(o=>`${o.slots[0].jour} ${o.slots[0].moment.toLowerCase()}`).join(', ')}. Cette liste de courses ne couvre donc pas ce(s) repas — retournez à l'étape 1 pour ajuster leur disponibilité, ou prévoyez une préparation plus tôt dans la semaine.</div>` : ''}
+  </section>`;
   if(periodes){
     periodes.forEach((p, idx)=>{
       const totalArticles = Object.values(p.parRayon).flat().length;
@@ -2293,12 +2300,14 @@ function renderBanniereHistorique(){
 }
 function renderStep5(){
   const selections = selectionsActuelles().filter(s=>s.recipeId);
+  const orphelines = construirePlanSurMesure().filter(l=>l.orpheline);
   let html = `<div class="carnet-wrap">
     ${renderBanniereHistorique()}
     <div class="no-print carnet-topbar">
       <button class="cta" id="backTo4">← Retour à la liste de courses</button>
       <button class="cta secondary" id="imprimerCarnet">🖨️ PDF</button>
     </div>
+    ${orphelines.length ? `<div class="warn" style="margin-top:12px;">⚠ ${orphelines.length} repas marqué(s) « réchauffage / repas froid » sans aucune préparation avant eux cette semaine : ${orphelines.map(o=>`${o.slots[0].jour} ${o.slots[0].moment.toLowerCase()}`).join(', ')}. Aucune recette n'est prévue pour ce(s) repas.</div>` : ''}
     <div class="carnet-cover" style="margin-top:20px;">
       <img class="carnet-logo" src="${LOGO_7_AU_MENU}" alt="7 au Menu !">
       <div class="carnet-cover-text">
@@ -2314,6 +2323,7 @@ function renderStep5(){
 
 function renderStep6(){
   const { parRayon, sansQuantite, periodes } = genererListe();
+  const orphelines = construirePlanSurMesure().filter(l=>l.orpheline);
   const ordreRayons = ['Fruits & légumes frais','Boucherie, volaille & poissonnerie','Crèmerie & œufs','Féculents & légumineuses','Conserves, sauces & condiments','Épices & herbes séchées','Boulangerie','Surgelés','Boissons & alcools de cuisine','Épicerie','Condiments & basiques'];
   let html = `<div class="carnet-wrap">
     ${renderBanniereHistorique()}
@@ -2321,6 +2331,7 @@ function renderStep6(){
       <button class="cta" id="backTo4depuis6">← Retour à la liste de courses</button>
       <button class="cta secondary" id="imprimerCourses">🖨️ PDF</button>
     </div>
+    ${orphelines.length ? `<div class="warn" style="margin-top:12px;">⚠ ${orphelines.length} repas marqué(s) « réchauffage / repas froid » sans aucune préparation avant eux cette semaine : ${orphelines.map(o=>`${o.slots[0].jour} ${o.slots[0].moment.toLowerCase()}`).join(', ')}. Cette liste ne couvre donc pas ce(s) repas.</div>` : ''}
     <div class="carnet-cover" style="margin-top:20px;">      <img class="carnet-logo" src="${LOGO_7_AU_MENU}" alt="7 au Menu !">
       <div class="carnet-cover-text"><div class="eyebrow">Carnet de la semaine</div><h2>Liste de courses</h2>
       <p>Semaine sur-mesure</p></div>
